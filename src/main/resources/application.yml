@@ -25,7 +25,16 @@ spring:
     baseline-on-migrate: true
 
 server:
-  port: 8080
+  port: ${PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
 
 jwt:
   secret: ${JWT_SECRET:your-secret-key-min-256-bits-change-in-production-please-use-env-variable}

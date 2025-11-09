@@ -2,6 +2,21 @@
 
 Quick reference for developing InvoiceMe.
 
+## Initial Setup
+
+**First time only:**
+```bash
+# Install Git hooks for pre-commit validation
+./setup-hooks.sh
+```
+
+This sets up automatic validation before each commit:
+- Backend compilation check
+- Frontend build check
+- TypeScript type checking
+- ESLint validation
+- Prettier formatting check
+
 ## Quick Start
 
 ### Using the Dev Script (Recommended)
