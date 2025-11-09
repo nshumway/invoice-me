@@ -35,7 +35,25 @@ The `dist/` folder contains all static assets (HTML, CSS, JS) ready to serve.
 
 ### Option 1: Docker (Recommended)
 
-**Coming Soon** - We'll add Dockerfiles for both backend and frontend.
+**Backend:**
+```bash
+# Build Docker image
+docker build -t invoiceme-backend .
+
+# Run container
+docker run -p 8080:8080 \
+  -e DATABASE_URL=<your-db-url> \
+  -e JWT_SECRET=<your-secret> \
+  -e SPRING_PROFILES_ACTIVE=prod \
+  invoiceme-backend
+```
+
+The `Dockerfile` uses multi-stage build:
+- Stage 1: Builds JAR with Maven
+- Stage 2: Runs JAR with lightweight JRE
+
+**Frontend:**
+Serve the `dist/` folder with any static host (nginx, Vercel, etc.)
 
 ### Option 2: Traditional Server
 

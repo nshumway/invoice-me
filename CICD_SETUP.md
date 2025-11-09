@@ -48,32 +48,40 @@ Complete guide to set up automated deployment for InvoiceMe using GitHub Actions
 ## Step 2: Deploy Backend to Render (10 minutes)
 
 1. Go to https://dashboard.render.com
-2. Click "New +" → "Blueprint"
-3. Connect your GitHub repository
-4. Select the `invoice-me` repository
-5. Render will detect `render.yaml` automatically
-6. Click "Apply"
+2. Sign up/in with GitHub
+3. Click "New +" → "Web Service"
+4. Click "Build and deploy from a Git repository" → Next
+5. Connect your GitHub repository:
+   - Find `invoice-me` in the list
+   - Click "Connect"
+   - If you don't see it, click "Configure account" to grant access
 
-Render will create:
-- Web Service: `invoiceme-backend`
-- PostgreSQL Database: `invoiceme-db` (you can delete this since we're using Neon)
+### Configure the Service
 
-### Configure Environment Variables
+6. Fill in the configuration:
+   - **Name**: `invoiceme-backend`
+   - **Region**: Choose closest to you
+   - **Branch**: `master` (or `feature/phase1-foundation` if not merged)
+   - **Root Directory**: Leave empty
+   - **Environment**: Select **Docker**
+   - **Dockerfile Path**: `Dockerfile` (auto-detected)
+   - **Docker Build Context Directory**: Leave empty
+   - **Docker Command**: Leave empty (uses ENTRYPOINT from Dockerfile)
 
-1. Go to your web service → "Environment"
-2. Update/Add these variables:
-   ```
-   DATABASE_URL=<your-neon-connection-string>
-   JWT_SECRET=<generate-random-256-bit-string>
-   SPRING_PROFILES_ACTIVE=prod
-   ```
+7. Choose **Free** plan (sleeps after 15 min inactivity)
 
-3. To generate a secure JWT secret:
-   ```bash
-   openssl rand -base64 32
-   ```
+### Add Environment Variables
 
-4. Click "Save Changes" - Render will redeploy
+8. Click "Advanced" to expand environment variables
+9. Add these variables:
+   - **DATABASE_URL**: `<paste your Neon connection string>`
+   - **JWT_SECRET**: Run `openssl rand -base64 32` and paste the output
+   - **SPRING_PROFILES_ACTIVE**: `prod`
+   - **PORT**: `8080`
+
+10. Click "Create Web Service"
+
+Render will build the Docker image (~10 minutes for first deploy)
 
 ### Get Deploy Hook for GitHub Actions
 

@@ -1,30 +1,22 @@
 # Render Blueprint for InvoiceMe Backend
-# This file configures automatic deployment to Render
+# This file configures automatic deployment to Render using Docker
 
 services:
-  # Spring Boot Backend
+  # Spring Boot Backend (Docker)
   - type: web
     name: invoiceme-backend
-    runtime: java
-    buildCommand: mvn clean package -DskipTests
-    startCommand: java -jar target/invoice-me-0.0.1-SNAPSHOT.jar
+    runtime: docker
+    dockerfilePath: ./Dockerfile
     plan: free
     healthCheckPath: /actuator/health
     envVars:
-      - key: JAVA_TOOL_OPTIONS
-        value: -Xmx512m
       - key: SPRING_PROFILES_ACTIVE
         value: prod
       - key: DATABASE_URL
-        fromDatabase:
-          name: invoiceme-db
-          property: connectionString
+        sync: false  # Set manually - use your Neon connection string
       - key: JWT_SECRET
         generateValue: true
+      - key: PORT
+        value: 8080
 
-databases:
-  # PostgreSQL Database
-  - name: invoiceme-db
-    databaseName: invoiceme
-    plan: free
-    user: invoiceme
+# Note: We use Neon for PostgreSQL (free tier), so no database defined here
