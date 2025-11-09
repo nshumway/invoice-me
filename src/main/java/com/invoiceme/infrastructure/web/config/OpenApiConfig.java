@@ -27,11 +27,13 @@ public class OpenApiConfig {
                                 .name("MIT")
                                 .url("https://opensource.org/licenses/MIT")))
                 .components(new Components()
-                        .addSecuritySchemes("bearer-jwt", new SecurityScheme()
+                        .addSecuritySchemes("bearerAuth", new SecurityScheme()
                                 .type(SecurityScheme.Type.HTTP)
                                 .scheme("bearer")
                                 .bearerFormat("JWT")
-                                .description("JWT authentication token")))
-                .addSecurityItem(new SecurityRequirement().addList("bearer-jwt"));
+                                .in(SecurityScheme.In.HEADER)
+                                .name("Authorization")
+                                .description("JWT authentication token. Format: Bearer {token}")))
+                .addSecurityItem(new SecurityRequirement().addList("bearerAuth"));
     }
 }
