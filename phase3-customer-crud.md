@@ -30,6 +30,82 @@ This phase implements complete Customer CRUD functionality using vertical slices
 - Soft deletes with isDeleted flag
 - Audit trail (createdBy, lastModifiedBy via UserContext)
 - User vs System updates (isSystemUpdate flag)
+- Event-driven domain model (publishes CustomerNameChangedEvent, CustomerDeletedEvent)
+
+---
+
+## Testing & Documentation Requirements
+
+All features in this phase must include comprehensive testing and API documentation:
+
+### OpenAPI Documentation
+- **Required for ALL endpoints**: Complete OpenAPI 3.0 annotations
+- Use Spring `@Operation`, `@ApiResponse`, `@Schema` annotations
+- Document all request/response models with descriptions and examples
+- Include error responses (400, 404, 409, etc.)
+- Tag all endpoints with `@Tag(name = "Customers")`
+
+### Backend Testing
+- **Unit Tests**: Service layer, entity lifecycle methods, mappers, event publishers
+- **Integration Tests**: Full transaction flows with in-memory database
+- **Event Tests**: Verify domain events published correctly
+- **Minimum Coverage**: 80% code coverage for service layer
+
+### Frontend Testing
+
+#### 1. ViewModel Tests (Vitest)
+- **Required for ALL ViewModels**
+- Test state management, form validation, mutation handling
+- Mock API calls using MSW (Mock Service Worker)
+- Test error handling and loading states
+- Test optimistic locking error scenarios
+
+#### 2. React Component Tests (Vitest + React Testing Library)
+- **Required for ALL Views and reusable components**
+- Test rendering, user interactions, conditional logic
+- Use `@testing-library/react` and `@testing-library/user-event`
+- Test accessibility (ARIA labels, keyboard navigation)
+
+#### 3. End-to-End Tests (Playwright)
+- **Required for ALL user stories**
+- Test complete user workflows from browser perspective
+- Run against development server
+- Test happy paths and critical error scenarios
+- Example flows:
+  - Create customer → Verify detail page → Verify in list
+  - Update customer → Verify changes persist
+  - Delete customer → Verify removed from list
+  - Search/filter customers
+
+### Testing Structure
+
+```
+Backend:
+src/test/java/.../customer/
+  ├── CustomerServiceTest.java          // Unit tests
+  ├── CustomerControllerIntegrationTest.java
+  ├── CustomerMapperTest.java
+  └── CustomerEventTest.java             // Event publishing tests
+
+Frontend:
+src/__tests__/
+  ├── viewmodels/
+  │   └── customers/
+  │       ├── CustomerFormViewModel.test.ts
+  │       ├── CustomerListViewModel.test.ts
+  │       └── CustomerDetailViewModel.test.ts
+  ├── views/
+  │   └── customers/
+  │       ├── CustomerFormView.test.tsx
+  │       ├── CustomerListView.test.tsx
+  │       └── CustomerDetailView.test.tsx
+  └── e2e/
+      └── customers/
+          ├── create-customer.spec.ts
+          ├── list-customers.spec.ts
+          ├── update-customer.spec.ts
+          └── delete-customer.spec.ts
+```
 
 ---
 
@@ -2646,14 +2722,19 @@ Due to length constraints, I'll provide a summary structure for the remaining ph
 
 **Backend:**
 - [ ] Customer entity with full lifecycle methods
+- [ ] Customer domain events implemented (CustomerNameChangedEvent, CustomerDeletedEvent)
 - [ ] Customers table created
 - [ ] CustomerRepository with all query methods
 - [ ] All DTOs created and tested
 - [ ] CustomerMapper tested
-- [ ] CustomerService with CRUD methods
+- [ ] CustomerService with CRUD methods and event publishing
+- [ ] CustomerService event listeners for Invoice events
 - [ ] CustomerController with all endpoints
+- [ ] **OpenAPI documentation complete for all endpoints**
 - [ ] Unit tests pass for all layers
 - [ ] Integration tests pass
+- [ ] Event publishing tests pass
+- [ ] **Code coverage ≥ 80% for service layer**
 
 **Frontend:**
 - [ ] Customer TypeScript models
@@ -2664,7 +2745,16 @@ Due to length constraints, I'll provide a summary structure for the remaining ph
 - [ ] TopBar with navigation
 - [ ] PageLayout wrapper
 - [ ] All views styled with Tailwind
-- [ ] Manual tests pass
+- [ ] **ViewModel tests complete (CustomerFormViewModel, CustomerListViewModel, CustomerDetailViewModel)**
+- [ ] **Component tests complete (CustomerFormView, CustomerListView, CustomerDetailView)**
+- [ ] **E2E tests complete (create, list, view, update, delete flows)**
+
+**Documentation & Testing:**
+- [ ] OpenAPI spec available at /swagger-ui/index.html
+- [ ] All API endpoints documented with examples
+- [ ] Error responses documented
+- [ ] Frontend test coverage ≥ 70%
+- [ ] E2E tests run in CI/CD pipeline
 
 **Integration:**
 - [ ] Can create customer via UI
@@ -2675,6 +2765,9 @@ Due to length constraints, I'll provide a summary structure for the remaining ph
 - [ ] Validation errors display correctly
 - [ ] Optimistic locking works
 - [ ] Soft deletes work
+- [ ] Domain events published when customer name changes
+- [ ] Domain events published when customer deleted
+- [ ] **E2E tests verify complete user workflows**
 
 ---
 

@@ -122,6 +122,103 @@ DRAFT ──────────────> SENT ────────�
 
 ---
 
+## Testing & Documentation Requirements
+
+All features in this phase must include comprehensive testing and API documentation:
+
+### OpenAPI Documentation
+- **Required for ALL endpoints**: Every REST API endpoint must have complete OpenAPI 3.0 annotations
+- Use Spring `@Operation`, `@ApiResponse`, `@Schema` annotations
+- Document all request/response models with descriptions and examples
+- Include error responses (400, 404, 409, etc.)
+- Example:
+```java
+@Operation(summary = "Create a new invoice",
+           description = "Creates a new invoice in DRAFT status for the specified customer")
+@ApiResponses(value = {
+    @ApiResponse(responseCode = "201", description = "Invoice created successfully",
+                 content = @Content(schema = @Schema(implementation = InvoiceResponse.class))),
+    @ApiResponse(responseCode = "400", description = "Invalid request data"),
+    @ApiResponse(responseCode = "404", description = "Customer not found")
+})
+@PostMapping
+public ResponseEntity<ApiResponse<InvoiceResponse>> createInvoice(@Valid @RequestBody CreateInvoiceRequest request)
+```
+
+### Backend Testing
+- **Unit Tests**: Service layer, entity lifecycle methods, mappers
+- **Integration Tests**: Full transaction flows with in-memory database
+- **Minimum Coverage**: 80% code coverage for service layer
+
+### Frontend Testing
+
+#### 1. ViewModel Tests (Vitest)
+- **Required for ALL ViewModels**
+- Test state management, form validation, mutation handling
+- Mock API calls using MSW (Mock Service Worker)
+- Test error handling and loading states
+- Example coverage:
+  - Initial state
+  - Form field updates
+  - Validation logic
+  - Successful API calls
+  - API error handling
+  - Edge cases (optimistic locking, etc.)
+
+#### 2. React Component Tests (Vitest + React Testing Library)
+- **Required for ALL Views and reusable components**
+- Test rendering, user interactions, conditional logic
+- Use `@testing-library/react` and `@testing-library/user-event`
+- Test accessibility (ARIA labels, keyboard navigation)
+- Example coverage:
+  - Component renders correctly
+  - User can interact with form fields
+  - Buttons are enabled/disabled appropriately
+  - Error messages display correctly
+  - Loading states work properly
+
+#### 3. End-to-End Tests (Playwright)
+- **Required for ALL user stories**
+- Test complete user workflows from browser perspective
+- Run against development server
+- Test happy paths and critical error scenarios
+- Example flows:
+  - Create invoice flow: Navigate to form → Fill fields → Submit → Verify detail page
+  - List invoices flow: Navigate to list → Verify invoices display → Search/filter
+  - Update invoice flow: Navigate to detail → Click edit → Modify → Submit → Verify changes
+  - Delete invoice flow: Navigate to detail → Click delete → Confirm → Verify redirect
+
+### Testing Structure Example
+
+```
+Backend:
+src/test/java/.../invoice/
+  ├── InvoiceServiceTest.java          // Unit tests
+  ├── InvoiceControllerIntegrationTest.java
+  └── InvoiceMapperTest.java
+
+Frontend:
+src/__tests__/
+  ├── viewmodels/
+  │   └── invoices/
+  │       ├── InvoiceFormViewModel.test.ts
+  │       ├── InvoiceListViewModel.test.ts
+  │       └── InvoiceDetailViewModel.test.ts
+  ├── views/
+  │   └── invoices/
+  │       ├── InvoiceFormView.test.tsx
+  │       ├── InvoiceListView.test.tsx
+  │       └── InvoiceDetailView.test.tsx
+  └── e2e/
+      └── invoices/
+          ├── create-invoice.spec.ts
+          ├── list-invoices.spec.ts
+          ├── update-invoice.spec.ts
+          └── delete-invoice.spec.ts
+```
+
+---
+
 ## Data Model Reference
 
 ### Invoice Entity Fields
@@ -620,21 +717,42 @@ void testCreateInvoiceIntegration() {
 **As a developer, I need POST /api/invoices endpoint so that invoices can be created via REST API**
 
 **Acceptance Criteria:**
-- POST /api/invoices endpoint
+- POST /api/invoices endpoint with complete OpenAPI documentation
 - Returns 201 Created on success
 - Returns ApiResponse<InvoiceResponse> wrapper
 - Integration test with MockMvc
+- **OpenAPI documentation complete with examples**
 
 **Implementation Scaffolding:**
 
 ```java
 @RestController
 @RequestMapping("/api/invoices")
+@Tag(name = "Invoices", description = "Invoice management operations")
 public class InvoiceController {
 
     @Autowired
     private InvoiceService invoiceService;
 
+    @Operation(
+        summary = "Create a new invoice",
+        description = "Creates a new invoice in DRAFT status for the specified customer. Invoice number can be provided or will be auto-generated in format INV-YYYY-#####."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "201",
+            description = "Invoice created successfully",
+            content = @Content(schema = @Schema(implementation = InvoiceResponse.class))
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "Invalid request data (validation errors)"
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Customer not found"
+        )
+    })
     @PostMapping
     public ResponseEntity<ApiResponse<InvoiceResponse>> createInvoice(
             @Valid @RequestBody CreateInvoiceRequest request) {
@@ -683,6 +801,9 @@ void testCreateInvoiceWithCustomNumber() {
 - Submits to API and shows loading state
 - Navigates to invoice detail on success
 - Shows error messages on failure
+- **ViewModel tests for InvoiceFormViewModel**
+- **Component tests for InvoiceFormView**
+- **E2E test for create invoice flow**
 
 **Implementation Scaffolding:**
 
@@ -886,10 +1007,138 @@ export const InvoiceFormView: React.FC = () => {
 ```
 
 **Testing Approach:**
-- Manual test: Fill form, verify auto-generated invoice number
-- Manual test: Provide custom invoice number, verify used
-- Manual test: Customer dropdown populated
-- Manual test: Navigates to detail view after creation
+
+**ViewModel Tests** (`InvoiceFormViewModel.test.ts`):
+```typescript
+describe('InvoiceFormViewModel', () => {
+  it('should initialize with empty form fields', () => {
+    const vm = InvoiceFormViewModel();
+    expect(vm.customerId).toBe('');
+    expect(vm.invoiceNumber).toBe('');
+    expect(vm.notes).toBe('');
+  });
+
+  it('should validate required customer field', () => {
+    const vm = InvoiceFormViewModel();
+    const isValid = vm.validate();
+    expect(isValid).toBe(false);
+    expect(vm.errors.customerId).toBe('Customer is required');
+  });
+
+  it('should call API and navigate on successful submit', async () => {
+    // Mock API response
+    server.use(
+      http.post('/api/invoices', () => {
+        return HttpResponse.json({ data: mockInvoice }, { status: 201 });
+      })
+    );
+
+    const vm = InvoiceFormViewModel();
+    vm.setCustomerId('customer-123');
+    await vm.handleSubmit(mockEvent);
+
+    expect(mockNavigate).toHaveBeenCalledWith('/invoices/invoice-123');
+  });
+
+  it('should display error on API failure', async () => {
+    server.use(
+      http.post('/api/invoices', () => {
+        return HttpResponse.json({ message: 'Customer not found' }, { status: 404 });
+      })
+    );
+
+    const vm = InvoiceFormViewModel();
+    await vm.handleSubmit(mockEvent);
+
+    expect(vm.errors.submit).toBe('Customer not found');
+  });
+});
+```
+
+**Component Tests** (`InvoiceFormView.test.tsx`):
+```typescript
+describe('InvoiceFormView', () => {
+  it('should render form with all fields', () => {
+    render(<InvoiceFormView />);
+
+    expect(screen.getByLabelText(/customer/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/invoice number/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/notes/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /create invoice/i })).toBeInTheDocument();
+  });
+
+  it('should populate customer dropdown from API', async () => {
+    render(<InvoiceFormView />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: /acme corp/i })).toBeInTheDocument();
+    });
+  });
+
+  it('should submit form when filled correctly', async () => {
+    const user = userEvent.setup();
+    render(<InvoiceFormView />);
+
+    await user.selectOptions(screen.getByLabelText(/customer/i), 'customer-123');
+    await user.type(screen.getByLabelText(/notes/i), 'Test invoice');
+    await user.click(screen.getByRole('button', { name: /create invoice/i }));
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/invoices/invoice-123');
+    });
+  });
+
+  it('should show validation errors', async () => {
+    const user = userEvent.setup();
+    render(<InvoiceFormView />);
+
+    await user.click(screen.getByRole('button', { name: /create invoice/i }));
+
+    expect(await screen.findByText(/customer is required/i)).toBeInTheDocument();
+  });
+});
+```
+
+**E2E Test** (`create-invoice.spec.ts`):
+```typescript
+test.describe('Create Invoice', () => {
+  test('should create invoice with auto-generated number', async ({ page }) => {
+    await page.goto('/invoices/new');
+
+    // Fill form
+    await page.selectOption('[name="customerId"]', 'customer-123');
+    await page.fill('[name="notes"]', 'Payment terms: Net 30');
+
+    // Submit
+    await page.click('button:has-text("Create Invoice")');
+
+    // Verify redirect to detail page
+    await expect(page).toHaveURL(/\/invoices\/[a-f0-9-]+$/);
+    await expect(page.locator('h1')).toContainText(/INV-\d{4}-\d{5}/);
+    await expect(page.locator('text=Payment terms: Net 30')).toBeVisible();
+  });
+
+  test('should create invoice with custom number', async ({ page }) => {
+    await page.goto('/invoices/new');
+
+    await page.selectOption('[name="customerId"]', 'customer-123');
+    await page.fill('[name="invoiceNumber"]', 'CUSTOM-001');
+    await page.click('button:has-text("Create Invoice")');
+
+    await expect(page.locator('h1')).toContainText('CUSTOM-001');
+  });
+
+  test('should show error for duplicate invoice number', async ({ page }) => {
+    await page.goto('/invoices/new');
+
+    await page.selectOption('[name="customerId"]', 'customer-123');
+    await page.fill('[name="invoiceNumber"]', 'INV-2025-00001'); // Already exists
+    await page.click('button:has-text("Create Invoice")');
+
+    await expect(page.locator('.error')).toContainText(/invoice number already exists/i);
+  });
+});
+```
 
 ---
 
@@ -1710,11 +1959,13 @@ const handleDelete = () => {
 - [ ] All Invoice DTOs created (Create, Update, Response, ListItem)
 - [ ] InvoiceMapper with toResponse() and toListItem()
 - [ ] InvoiceService with all CRUD methods
-- [ ] InvoiceService.markInvoiceAsSent() implemented
-- [ ] CustomerService cascade methods implemented
-- [ ] InvoiceController with all endpoints including POST /api/invoices/:id/send
-- [ ] Unit tests pass for all layers
+- [ ] InvoiceService event listeners implemented (CustomerNameChangedEvent, LineItemChangedEvent, PaymentRecordedEvent)
+- [ ] Invoice domain events implemented (InvoiceCreatedEvent, InvoiceStatusChangedEvent, InvoiceDeletedEvent, InvoiceCustomerNameChangedEvent)
+- [ ] InvoiceController with all endpoints
+- [ ] **OpenAPI documentation complete for all endpoints**
+- [ ] Unit tests pass for all layers (service, entity, mapper)
 - [ ] Integration tests pass for all operations
+- [ ] **Code coverage ≥ 80% for service layer**
 
 **Frontend:**
 - [ ] Invoice TypeScript models defined
@@ -1727,6 +1978,17 @@ const handleDelete = () => {
 - [ ] Delete invoice confirmation dialog working
 - [ ] Optimistic locking errors handled gracefully
 - [ ] All routes configured in App.tsx
+- [ ] **ViewModel tests complete (InvoiceFormViewModel, InvoiceListViewModel, InvoiceDetailViewModel)**
+- [ ] **Component tests complete (InvoiceFormView, InvoiceListView, InvoiceDetailView)**
+- [ ] **E2E tests complete (create, list, view, update, send, delete flows)**
+
+**Documentation & Testing:**
+- [ ] OpenAPI spec available at /swagger-ui/index.html
+- [ ] All API endpoints documented with examples
+- [ ] Error responses documented
+- [ ] Frontend test coverage ≥ 70%
+- [ ] E2E tests run in CI/CD pipeline
+- [ ] Test documentation updated
 
 **Integration:**
 - [ ] Can create invoice via UI with auto-generated number
@@ -1737,8 +1999,9 @@ const handleDelete = () => {
 - [ ] Can mark invoice as sent (only if total > 0)
 - [ ] Edit button hidden when invoice is SENT or PAID
 - [ ] Can delete draft or paid invoice (not sent)
-- [ ] Customer draft/sent/paid counts update correctly
+- [ ] Customer draft/sent/paid counts update correctly via domain events
 - [ ] Soft deletes work, audit trail preserved
+- [ ] **E2E tests verify complete user workflows**
 
 **Next Phase:**
 Phase 5: LineItem CRUD - Adding line items to invoices with automatic total recalculation

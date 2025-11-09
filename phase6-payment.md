@@ -116,6 +116,48 @@ When Payment is recorded:
 
 ---
 
+## Testing & Documentation Requirements
+
+All features in this phase must include comprehensive testing and API documentation:
+
+### OpenAPI Documentation
+- Complete OpenAPI 3.0 annotations for all Payment endpoints
+- Document POST /api/payments (record payment)
+- Document GET /api/payments/{id} (view payment detail)
+- Document GET /api/invoices/{invoiceId}/payments (list payments for invoice)
+- **Note**: No DELETE endpoint (payments cannot be deleted by users)
+
+### Backend Testing
+- Unit tests for Payment entity lifecycle methods
+- Integration tests for amountPaid recalculation and status transitions
+- Test event publishing (PaymentRecordedEvent)
+- Test automatic SENT → PAID transition
+- Test customer statistics updates via events
+- Minimum 80% code coverage for PaymentService
+
+### Frontend Testing
+
+**ViewModel Tests:**
+- `RecordPaymentViewModel.test.ts` - Form state, validation, balance calculation
+- `PaymentDetailViewModel.test.ts` - Data loading, navigation
+- Test payment date validation (not before invoice date)
+- Test amount validation (must be > 0)
+
+**Component Tests:**
+- `RecordPaymentForm.test.tsx` - Form rendering, payment method dropdown, date picker
+- `PaymentsTable.test.tsx` - Table rendering, running total display
+- `PaymentDetailView.test.tsx` - Detail display, navigation to invoice
+- Test conditional rendering (record payment button only for SENT/PAID invoices)
+
+**E2E Tests:**
+- `record-payment-full.spec.ts` - Record payment equal to invoice total, verify PAID status
+- `record-payment-partial.spec.ts` - Record partial payment, verify status stays SENT
+- `record-payment-overpayment.spec.ts` - Record overpayment, verify PAID status
+- `view-payment-history.spec.ts` - View payment history on invoice detail
+- Test validation errors (date before invoice date, zero amount)
+
+---
+
 ## Data Model Reference
 
 ### Payment Entity Fields
@@ -1266,21 +1308,23 @@ export const PaymentDetailView: React.FC = () => {
 **Backend:**
 - [ ] Payment entity with beforeCreate/create/afterCreate implemented
 - [ ] Payment entity with beforeDelete/delete/afterDelete for cascades
+- [ ] Payment domain event implemented (PaymentRecordedEvent)
 - [ ] PaymentMethod enum defined
 - [ ] payments table created with Flyway migration
 - [ ] PaymentRepository with query methods including sumAmounts
 - [ ] All Payment DTOs created (RecordPayment, Response)
 - [ ] PaymentMapper with toResponse()
 - [ ] PaymentService.recordPayment() implemented
-- [ ] PaymentService.deleteAllForInvoice() for cascade delete
-- [ ] InvoiceService.recalculateAmountPaid() implemented
-- [ ] InvoiceService.checkAndTransitionToPaid() implemented
-- [ ] Invoice.afterTransitionToPaid() cascades to Customer
-- [ ] CustomerService.updateInvoiceCountsOnPaid() implemented
+- [ ] PaymentService event listeners implemented (InvoiceDeletedEvent, InvoiceCustomerNameChangedEvent)
+- [ ] InvoiceService event listener for PaymentRecordedEvent
+- [ ] InvoiceService handles SENT → PAID transition via event
+- [ ] CustomerService handles InvoiceStatusChangedEvent for SENT → PAID
 - [ ] PaymentController with record and getById (NO DELETE endpoint)
 - [ ] InvoicePaymentController for list payments
+- [ ] **OpenAPI documentation complete for all endpoints**
 - [ ] Unit tests pass for all layers
-- [ ] Integration tests pass for status transition to PAID
+- [ ] Integration tests pass for status transition via events
+- [ ] **Code coverage ≥ 80% for service layer**
 
 **Frontend:**
 - [ ] Payment TypeScript models defined
@@ -1292,26 +1336,43 @@ export const PaymentDetailView: React.FC = () => {
 - [ ] Invoice total and status update after payment recorded
 - [ ] "Record Payment" button only shows for SENT/PAID invoices
 - [ ] All routes configured in App.tsx
+- [ ] **ViewModel tests complete (RecordPaymentViewModel, PaymentDetailViewModel)**
+- [ ] **Component tests complete (RecordPaymentForm, PaymentsTable, PaymentDetailView)**
+- [ ] **E2E tests complete (full payment, partial payment, overpayment flows)**
+
+**Documentation & Testing:**
+- [ ] OpenAPI documentation includes payment method enum
+- [ ] Error responses documented (date validation, amount validation)
+- [ ] Frontend test coverage ≥ 70%
+- [ ] E2E tests verify automatic PAID status transition
 
 **Integration:**
 - [ ] Can record payment for SENT invoice
 - [ ] Cannot record payment for DRAFT invoice
-- [ ] Invoice.amountPaid recalculates after payment
-- [ ] Invoice transitions to PAID when fully paid
-- [ ] Customer counts update when invoice becomes PAID
+- [ ] Invoice.amountPaid recalculates via PaymentRecordedEvent
+- [ ] Invoice transitions to PAID automatically when fully paid (via event)
+- [ ] Customer counts update via InvoiceStatusChangedEvent
 - [ ] Partial payments work correctly (status stays SENT)
 - [ ] Overpayments allowed (status becomes PAID)
 - [ ] Payment date validation (not before invoice date)
-- [ ] Payments cascade deleted when invoice deleted
+- [ ] Payments cascade deleted via InvoiceDeletedEvent
+- [ ] Customer name updates propagate via events
 - [ ] Payments cannot be deleted by users (no delete button/endpoint)
 - [ ] Audit trail preserved
+- [ ] **E2E tests verify complete payment workflows**
 
 **Application Complete:**
 - [ ] All CRUD operations working for all entities
-- [ ] Status transitions working (DRAFT → SENT → PAID)
-- [ ] Cascading updates working (Customer → Invoice → LineItem/Payment)
+- [ ] Event-driven architecture working (no circular dependencies)
+- [ ] Status transitions working (DRAFT → SENT → PAID) via events
+- [ ] Domain events published and subscribed correctly
 - [ ] All validation rules enforced
 - [ ] Optimistic locking working
 - [ ] Soft deletes working everywhere
 - [ ] Audit trail complete
-- [ ] Manual end-to-end test: Create customer → Create invoice → Add line items → Send invoice → Record payments → Verify PAID status
+- [ ] **OpenAPI documentation complete for entire application**
+- [ ] **All unit tests passing (backend ≥ 80% coverage)**
+- [ ] **All integration tests passing**
+- [ ] **All frontend tests passing (≥ 70% coverage)**
+- [ ] **All E2E tests passing in CI/CD**
+- [ ] **E2E test: Complete workflow from customer creation to invoice paid**

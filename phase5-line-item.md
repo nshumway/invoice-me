@@ -98,6 +98,42 @@ When Customer.companyName changes:
 
 ---
 
+## Testing & Documentation Requirements
+
+All features in this phase must include comprehensive testing and API documentation following the same standards as Phase 4:
+
+### OpenAPI Documentation
+- Complete OpenAPI 3.0 annotations for all LineItem endpoints
+- Document nested routes under `/api/invoices/{invoiceId}/line-items`
+- Include validation rules, error responses, and examples
+
+### Backend Testing
+- Unit tests for LineItem entity lifecycle methods
+- Integration tests for total recalculation
+- Test event publishing (LineItemChangedEvent)
+- Minimum 80% code coverage for LineItemService
+
+### Frontend Testing
+
+**ViewModel Tests:**
+- `AddLineItemViewModel.test.ts` - Form state, validation, line total calculation preview
+- Test quantity/price changes trigger lineTotal recalculation
+- Test API success/failure scenarios
+
+**Component Tests:**
+- `AddLineItemForm.test.tsx` - Form rendering, user input, submission
+- `LineItemsTable.test.tsx` - Table rendering, edit/delete buttons, conditional display
+- Test inline editing workflows
+- Test accessibility
+
+**E2E Tests:**
+- `add-line-item.spec.ts` - Add line item to invoice, verify total updates
+- `edit-line-item.spec.ts` - Edit quantity/price, verify recalculation
+- `delete-line-item.spec.ts` - Delete line item, verify total updates
+- Test validation errors (negative quantity, zero price)
+
+---
+
 ## Data Model Reference
 
 ### LineItem Entity Fields
@@ -1238,16 +1274,19 @@ const handleDeleteLineItem = (lineItem: LineItem) => {
 
 **Backend:**
 - [ ] LineItem entity with full lifecycle methods implemented
+- [ ] LineItem domain event implemented (LineItemChangedEvent)
 - [ ] line_items table created with Flyway migration
 - [ ] LineItemRepository with query methods including sumLineTotals
 - [ ] All LineItem DTOs created
 - [ ] LineItemMapper with toResponse()
 - [ ] LineItemService with CRUD methods
-- [ ] LineItemService cascade methods (updateCustomerName, deleteAllForInvoice)
-- [ ] InvoiceService.recalculateInvoiceTotal() implemented
+- [ ] LineItemService event listeners implemented (InvoiceDeletedEvent, InvoiceCustomerNameChangedEvent)
+- [ ] InvoiceService event listener for LineItemChangedEvent
 - [ ] LineItemController with all endpoints
+- [ ] **OpenAPI documentation complete for all endpoints**
 - [ ] Unit tests pass for all layers
-- [ ] Integration tests pass for total recalculation
+- [ ] Integration tests pass for total recalculation via events
+- [ ] **Code coverage ≥ 80% for service layer**
 
 **Frontend:**
 - [ ] LineItem TypeScript models defined
@@ -1257,15 +1296,26 @@ const handleDeleteLineItem = (lineItem: LineItem) => {
 - [ ] Invoice detail page shows line items
 - [ ] Invoice total updates after line item changes
 - [ ] Optimistic locking errors handled
+- [ ] **ViewModel tests complete (AddLineItemViewModel)**
+- [ ] **Component tests complete (AddLineItemForm, LineItemsTable)**
+- [ ] **E2E tests complete (add, edit, delete flows)**
+
+**Documentation & Testing:**
+- [ ] OpenAPI documentation includes nested routes
+- [ ] Error responses documented
+- [ ] Frontend test coverage ≥ 70%
+- [ ] E2E tests verify invoice total recalculation
 
 **Integration:**
 - [ ] Can add line item to DRAFT invoice
 - [ ] Cannot add line item to SENT/PAID invoice
-- [ ] Invoice total recalculates after create/update/delete
+- [ ] Invoice total recalculates automatically via LineItemChangedEvent
 - [ ] Can edit line item (quantity, price, description)
 - [ ] Can delete line item
-- [ ] Line items soft deleted when invoice deleted
+- [ ] Line items cascade deleted via InvoiceDeletedEvent
+- [ ] Customer name updates propagate via events
 - [ ] Audit trail preserved
+- [ ] **E2E tests verify complete workflows**
 
 **Next Phase:**
 Phase 6: Payment CRUD - Recording payments with automatic invoice status transitions to PAID
