@@ -4,6 +4,8 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoginView } from './views/auth/LoginView';
 import { SignupView } from './views/auth/SignupView';
 import { CustomerListView } from './views/customers/CustomerListView';
+import { CustomerFormView } from './views/customers/CustomerFormView';
+import { CustomerDetailView } from './views/customers/CustomerDetailView';
 
 function App() {
   return (
@@ -15,6 +17,9 @@ function App() {
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<Navigate to="/customers" replace />} />
           <Route path="/customers" element={<CustomerListView />} />
+          <Route path="/customers/new" element={<CustomerFormView />} />
+          <Route path="/customers/:id" element={<CustomerDetailView />} />
+          <Route path="/customers/:id/edit" element={<CustomerFormView />} />
         </Route>
       </Routes>
     </AuthProvider>

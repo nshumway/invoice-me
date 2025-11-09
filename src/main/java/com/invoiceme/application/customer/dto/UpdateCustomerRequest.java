@@ -8,7 +8,7 @@ import java.util.UUID;
 
 public class UpdateCustomerRequest {
 
-    @NotNull(message = "Customer ID is required")
+    // ID is set from path parameter in controller, not from request body
     private UUID id;
 
     @NotNull(message = "Version is required for optimistic locking")
