@@ -30,6 +30,9 @@ class CustomerServiceTest {
     @Mock
     private CustomerRepository customerRepository;
 
+    @Mock
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
+
     private CustomerService customerService;
 
     // Use real mapper (not mocked)
@@ -49,6 +52,10 @@ class CustomerServiceTest {
             var mapperField = CustomerService.class.getDeclaredField("customerMapper");
             mapperField.setAccessible(true);
             mapperField.set(customerService, customerMapper);
+
+            var eventPublisherField = CustomerService.class.getDeclaredField("eventPublisher");
+            eventPublisherField.setAccessible(true);
+            eventPublisherField.set(customerService, eventPublisher);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

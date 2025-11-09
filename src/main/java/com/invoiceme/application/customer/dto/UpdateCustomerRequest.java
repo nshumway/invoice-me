@@ -3,6 +3,8 @@ package com.invoiceme.application.customer.dto;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.util.UUID;
 
@@ -15,21 +17,49 @@ public class UpdateCustomerRequest {
     private Long version;
 
     @NotBlank(message = "Company name is required")
+    @Size(max = 255, message = "Company name must not exceed 255 characters")
+    @Pattern(regexp = "^[^<>]*$", message = "Company name cannot contain HTML tags")
     private String companyName;
 
+    @Size(max = 255, message = "First name must not exceed 255 characters")
+    @Pattern(regexp = "^[^<>]*$", message = "First name cannot contain HTML tags")
     private String contactFirstName;
+
+    @Size(max = 255, message = "Last name must not exceed 255 characters")
+    @Pattern(regexp = "^[^<>]*$", message = "Last name cannot contain HTML tags")
     private String contactLastName;
 
     @NotBlank(message = "Email is required")
     @Email(message = "Must be a valid email address")
+    @Size(max = 255, message = "Email must not exceed 255 characters")
     private String email;
 
+    @Size(max = 50, message = "Phone number must not exceed 50 characters")
+    @Pattern(regexp = "^[+]?[0-9()\\-\\s]*$", message = "Phone number can only contain digits, +, (), -, and spaces")
     private String phone;
+
+    @Size(max = 255, message = "Address line 1 must not exceed 255 characters")
+    @Pattern(regexp = "^[^<>]*$", message = "Address line 1 cannot contain HTML tags")
     private String addressLine1;
+
+    @Size(max = 255, message = "Address line 2 must not exceed 255 characters")
+    @Pattern(regexp = "^[^<>]*$", message = "Address line 2 cannot contain HTML tags")
     private String addressLine2;
+
+    @Size(max = 100, message = "City must not exceed 100 characters")
+    @Pattern(regexp = "^[^<>]*$", message = "City cannot contain HTML tags")
     private String city;
+
+    @Size(max = 100, message = "State must not exceed 100 characters")
+    @Pattern(regexp = "^[^<>]*$", message = "State cannot contain HTML tags")
     private String state;
+
+    @Size(max = 20, message = "Zip code must not exceed 20 characters")
+    @Pattern(regexp = "^[^<>]*$", message = "Zip code cannot contain HTML tags")
     private String zipCode;
+
+    @Size(max = 100, message = "Country must not exceed 100 characters")
+    @Pattern(regexp = "^[^<>]*$", message = "Country cannot contain HTML tags")
     private String country;
 
     // === Read-only fields (only for system updates) ===

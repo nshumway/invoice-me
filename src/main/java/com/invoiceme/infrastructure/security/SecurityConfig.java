@@ -36,6 +36,31 @@ public class SecurityConfig {
             )
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+            )
+            .headers(headers -> headers
+                // Prevent clickjacking attacks
+                .frameOptions(frame -> frame.deny())
+                // Prevent MIME type sniffing
+                .contentTypeOptions(contentType -> {})
+                // Enable XSS protection (legacy browsers)
+                .xssProtection(xss -> {})
+                // Content Security Policy - restrict resource loading
+                .contentSecurityPolicy(csp -> csp
+                    .policyDirectives("default-src 'self'; " +
+                                    "script-src 'self' 'unsafe-inline'; " +
+                                    "style-src 'self' 'unsafe-inline'; " +
+                                    "img-src 'self' data:; " +
+                                    "font-src 'self' data:; " +
+                                    "connect-src 'self'")
+                )
+                // Referrer policy - control information in Referer header
+                .referrerPolicy(referrer -> referrer
+                    .policy(org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN)
+                )
+                // Permissions policy - disable dangerous features
+                .permissionsPolicy(permissions -> permissions
+                    .policy("geolocation=(), microphone=(), camera=()")
+                )
             );
 
         // Add rate limiting filter if present (not in test profile)

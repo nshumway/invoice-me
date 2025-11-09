@@ -12,9 +12,14 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addMapping("/api/**")
                 .allowedOrigins("http://localhost:5173")
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                .allowedHeaders("*")
+                // Restrict allowed headers to only what we need (security best practice)
+                .allowedHeaders("Authorization", "Content-Type", "X-Requested-With")
+                // Expose specific response headers to the frontend
+                .exposedHeaders("Authorization")
                 // Credentials disabled - we use stateless JWT in Authorization header, not cookies
                 // This prevents CSRF attacks if cookies were accidentally added in the future
-                .allowCredentials(false);
+                .allowCredentials(false)
+                // Cache preflight response for 1 hour
+                .maxAge(3600);
     }
 }

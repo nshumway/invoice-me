@@ -4,6 +4,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -31,6 +33,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 @org.springframework.context.annotation.Profile("!test")
 public class RateLimitingFilter extends OncePerRequestFilter {
 
+    private static final Logger logger = LoggerFactory.getLogger(RateLimitingFilter.class);
+
     // Rate limit windows (in seconds)
     private static final int WINDOW_SIZE_SECONDS = 60;
 
@@ -56,6 +60,8 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 
         // Check and update rate limit
         if (isRateLimitExceeded(key, rateLimit)) {
+            logger.warn("Rate limit exceeded for IP: {}, endpoint type: {}, URI: {}",
+                       clientIP, (requestURI.startsWith("/api/auth/") ? "auth" : "api"), requestURI);
             response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
             response.setContentType("application/json");
             response.getWriter().write(
@@ -63,6 +69,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             return;
         }
 
+        logger.debug("Rate limit check passed for IP: {}, endpoint: {}", clientIP, requestURI);
         filterChain.doFilter(request, response);
     }
 
@@ -106,9 +113,15 @@ public class RateLimitingFilter extends OncePerRequestFilter {
      */
     public void cleanupOldEntries() {
         long now = Instant.now().getEpochSecond();
+        int sizeBefore = rateLimitStore.size();
         rateLimitStore.entrySet().removeIf(entry ->
             now - entry.getValue().windowStart >= WINDOW_SIZE_SECONDS * 2
         );
+        int sizeAfter = rateLimitStore.size();
+        if (sizeBefore != sizeAfter) {
+            logger.debug("Rate limit store cleanup: removed {} entries, {} remaining",
+                        (sizeBefore - sizeAfter), sizeAfter);
+        }
     }
 
     /**
