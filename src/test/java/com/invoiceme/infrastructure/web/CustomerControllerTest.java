@@ -3,7 +3,6 @@ package com.invoiceme.infrastructure.web;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.invoiceme.application.common.UserContext;
 import com.invoiceme.application.customer.dto.*;
-import com.invoiceme.config.TestSecurityConfig;
 import com.invoiceme.infrastructure.persistence.CustomerRepository;
 import jakarta.servlet.Filter;
 import org.junit.jupiter.api.AfterEach;
@@ -12,7 +11,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
@@ -29,7 +27,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @Transactional
 @WithMockUser  // Bypasses JWT authentication for testing
-@Import(TestSecurityConfig.class)  // Use test security config without rate limiting
 class CustomerControllerTest {
 
     @Autowired
