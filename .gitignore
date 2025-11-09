@@ -41,3 +41,8 @@ logs/
 
 # Database
 postgres_data/
+
+# Development script artifacts
+.dev-pids
+backend.log
+frontend.log
