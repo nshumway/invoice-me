@@ -57,7 +57,7 @@ public class Customer extends BaseEntity {
     private String contactFirstName;
     private String contactLastName;
 
-    @Column(unique = true)
+    @Column(nullable = false, unique = true)
     private String email;
 
     private String phone;
@@ -95,9 +95,13 @@ public class Customer extends BaseEntity {
             throw new ValidationException("Company name is required");
         }
 
+        // Validate email required
+        if (request.getEmail() == null || request.getEmail().isBlank()) {
+            throw new ValidationException("Email is required");
+        }
+
         // Validate email uniqueness
-        if (request.getEmail() != null &&
-            customerRepository.existsByEmailAndIsDeletedFalse(request.getEmail())) {
+        if (customerRepository.existsByEmailAndIsDeletedFalse(request.getEmail())) {
             throw new ValidationException("Customer with email " + request.getEmail() + " already exists");
         }
     }
@@ -135,8 +139,13 @@ public class Customer extends BaseEntity {
             throw new ValidationException("Company name is required");
         }
 
+        // Validate email required
+        if (request.getEmail() == null || request.getEmail().isBlank()) {
+            throw new ValidationException("Email is required");
+        }
+
         // Validate email uniqueness (if changing)
-        if (request.getEmail() != null && !request.getEmail().equals(this.email)) {
+        if (!request.getEmail().equals(this.email)) {
             if (customerRepository.existsByEmailAndIsDeletedFalse(request.getEmail())) {
                 throw new ValidationException("Customer with email " + request.getEmail() + " already exists");
             }
@@ -322,6 +331,7 @@ public class CreateCustomerRequest {
     private String contactFirstName;
     private String contactLastName;
 
+    @NotBlank(message = "Email is required")
     @Email(message = "Must be a valid email address")
     private String email;
 
@@ -362,6 +372,7 @@ public class UpdateCustomerRequest {
     private String contactFirstName;
     private String contactLastName;
 
+    @NotBlank(message = "Email is required")
     @Email(message = "Must be a valid email address")
     private String email;
 

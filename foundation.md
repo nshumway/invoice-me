@@ -770,7 +770,7 @@ CREATE TABLE customers (
     company_name VARCHAR(255) NOT NULL,
     contact_first_name VARCHAR(255),
     contact_last_name VARCHAR(255),
-    email VARCHAR(255),
+    email VARCHAR(255) NOT NULL,
     phone VARCHAR(50),
     address_line1 VARCHAR(255),
     address_line2 VARCHAR(255),
@@ -801,7 +801,7 @@ CREATE TABLE customers (
 -- Unique email for non-deleted customers
 CREATE UNIQUE INDEX idx_customers_email_active
     ON customers(email)
-    WHERE is_deleted = FALSE AND email IS NOT NULL;
+    WHERE is_deleted = FALSE;
 
 -- Index for customer lookups
 CREATE INDEX idx_customers_company_name
