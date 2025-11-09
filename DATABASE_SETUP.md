@@ -35,9 +35,26 @@ psql -U invoiceme -d invoiceme -h localhost
 
 ## Environment Variables
 
-The application uses these environment variables (with defaults):
-- `DB_USERNAME` (default: invoiceme)
-- `DB_PASSWORD` (default: invoiceme)
-- `JWT_SECRET` (default provided, change in production)
+The application uses these environment variables:
 
-For production, set these in your environment or `.env` file.
+### Local Development (Docker Compose)
+Default `DATABASE_URL` in `.env.example` works automatically:
+```bash
+DATABASE_URL=jdbc:postgresql://localhost:5432/invoiceme?user=invoiceme&password=invoiceme
+```
+
+### Production (Neon, RDS, etc.)
+Set `DATABASE_URL` with your database connection string:
+```bash
+# For Neon (add jdbc: prefix to Neon connection string)
+DATABASE_URL=jdbc:postgresql://username:password@ep-xyz.region.aws.neon.tech/invoiceme?sslmode=require
+
+# For other PostgreSQL providers
+DATABASE_URL=jdbc:postgresql://host:5432/invoiceme?user=username&password=password
+```
+
+### Security
+Also required:
+- `JWT_SECRET` - Generate with: `openssl rand -base64 32`
+
+For local development, copy `.env.example` to `.env` and update values.

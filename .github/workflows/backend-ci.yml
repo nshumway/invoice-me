@@ -47,8 +47,7 @@ jobs:
       - name: Run tests
         run: mvn test
         env:
-          DB_USERNAME: invoiceme
-          DB_PASSWORD: invoiceme
+          DATABASE_URL: jdbc:postgresql://localhost:5432/invoiceme_test?user=invoiceme&password=invoiceme
 
       - name: Build JAR
         run: mvn clean package -DskipTests

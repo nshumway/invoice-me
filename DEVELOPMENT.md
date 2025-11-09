@@ -235,15 +235,30 @@ git push origin feature/my-feature
 
 ## Environment Variables
 
-Optional environment variables you can set:
+### Backend Setup (Required)
+
+The backend automatically loads variables from `.env` file:
 
 ```bash
-# Backend
-export DB_USERNAME=invoiceme
-export DB_PASSWORD=invoiceme
-export JWT_SECRET=your-secret-key
+# 1. Copy the template
+cp .env.example .env
 
-# Frontend
+# 2. Generate a JWT secret
+openssl rand -base64 32
+
+# 3. Edit .env and paste your generated secret
+# Replace JWT_SECRET value with the generated one
+```
+
+**Important**: The application will fail to start if `JWT_SECRET` is not set. This is a security feature.
+
+Key variables:
+- `DATABASE_URL` - Database connection string (default works with Docker Compose)
+- `JWT_SECRET` - **REQUIRED** - Generate with: `openssl rand -base64 32`
+
+### Frontend Setup (Optional)
+
+```bash
 # Create invoice-me-frontend/.env
 VITE_API_BASE_URL=http://localhost:8080
 ```

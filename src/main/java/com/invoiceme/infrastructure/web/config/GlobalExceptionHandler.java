@@ -48,8 +48,13 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGenericException(Exception ex) {
+        // Log the full exception for debugging (includes stack trace)
+        // In production, configure logging to send to monitoring system
+        ex.printStackTrace(); // TODO: Replace with proper logger in production
+
+        // Return generic message to client (don't leak internal details)
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.failure("An unexpected error occurred: " + ex.getMessage()));
+                .body(ApiResponse.failure("An unexpected error occurred. Please contact support if the problem persists."));
     }
 }

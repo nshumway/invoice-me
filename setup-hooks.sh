@@ -53,12 +53,25 @@ print_status() {
     fi
 }
 
-# 1. Check Backend Compilation
+# 1. Run Backend Tests
+echo -e "${BLUE}Running backend tests...${NC}"
+mvn test -q > /dev/null 2>&1
+print_status $? "Backend tests"
+
+# 2. Check Backend Compilation
 echo -e "${BLUE}Checking backend compilation...${NC}"
 mvn compile -q > /dev/null 2>&1
 print_status $? "Backend compilation"
 
-# 2. Check Frontend Build
+# 3. Run Frontend Tests
+echo -e "${BLUE}Running frontend tests...${NC}"
+cd invoice-me-frontend
+npm run test > /dev/null 2>&1
+FRONTEND_TEST_STATUS=$?
+cd ..
+print_status $FRONTEND_TEST_STATUS "Frontend tests"
+
+# 4. Check Frontend Build
 echo -e "${BLUE}Checking frontend build...${NC}"
 cd invoice-me-frontend
 npm run build > /dev/null 2>&1
@@ -66,7 +79,7 @@ BUILD_STATUS=$?
 cd ..
 print_status $BUILD_STATUS "Frontend build"
 
-# 3. Check TypeScript Types
+# 5. Check TypeScript Types
 echo -e "${BLUE}Checking TypeScript types...${NC}"
 cd invoice-me-frontend
 npx tsc --noEmit > /dev/null 2>&1
@@ -74,7 +87,7 @@ TS_STATUS=$?
 cd ..
 print_status $TS_STATUS "TypeScript type check"
 
-# 4. Run ESLint
+# 6. Run ESLint
 echo -e "${BLUE}Running ESLint...${NC}"
 cd invoice-me-frontend
 npx eslint . --ext ts,tsx --max-warnings=0 > /dev/null 2>&1
@@ -82,7 +95,7 @@ ESLINT_STATUS=$?
 cd ..
 print_status $ESLINT_STATUS "ESLint validation"
 
-# 5. Check Prettier Formatting
+# 7. Check Prettier Formatting
 echo -e "${BLUE}Checking code formatting...${NC}"
 cd invoice-me-frontend
 npx prettier --check "src/**/*.{ts,tsx,css}" > /dev/null 2>&1
@@ -102,7 +115,9 @@ else
     echo "  cd invoice-me-frontend && npm run format"
     echo ""
     echo -e "${YELLOW}To see detailed errors, run checks manually:${NC}"
+    echo "  mvn test"
     echo "  mvn compile"
+    echo "  cd invoice-me-frontend && npm run test"
     echo "  cd invoice-me-frontend && npm run build"
     echo "  cd invoice-me-frontend && npm run type-check"
     echo "  cd invoice-me-frontend && npm run lint"
@@ -115,7 +130,9 @@ chmod +x .git/hooks/pre-commit
 echo -e "${GREEN}✓${NC} Pre-commit hook installed successfully!"
 echo ""
 echo "The hook will run these checks before each commit:"
+echo "  • Backend tests"
 echo "  • Backend compilation"
+echo "  • Frontend tests"
 echo "  • Frontend build"
 echo "  • TypeScript type checking"
 echo "  • ESLint validation"

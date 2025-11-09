@@ -100,10 +100,11 @@ Serve the `dist/` folder with any static host (nginx, Vercel, etc.)
 ### Backend
 
 ```bash
-# Database
-DB_USERNAME=your_db_user
-DB_PASSWORD=your_db_password
-DATABASE_URL=jdbc:postgresql://your-host:5432/invoiceme
+# Database - Use connection string (Neon, RDS, etc.)
+DATABASE_URL=jdbc:postgresql://your-host:5432/invoiceme?user=username&password=password
+
+# Or for Neon specifically (add jdbc: prefix to Neon connection string)
+DATABASE_URL=jdbc:postgresql://username:password@ep-xyz.region.aws.neon.tech/invoiceme?sslmode=require
 
 # Security
 JWT_SECRET=your-256-bit-secret-key
@@ -137,9 +138,8 @@ Create `application-prod.yml`:
 ```yaml
 spring:
   datasource:
-    url: ${DATABASE_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: ${DATABASE_URL}  # Connection string with credentials
+    driver-class-name: org.postgresql.Driver
 
   jpa:
     show-sql: false  # Disable SQL logging in production

@@ -3,10 +3,15 @@ spring:
     name: invoice-me
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/invoiceme
-    username: ${DB_USERNAME:invoiceme}
-    password: ${DB_PASSWORD:invoiceme}
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/invoiceme?user=invoiceme&password=invoiceme}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      pool-name: InvoiceMeHikariPool
 
   jpa:
     hibernate:
@@ -37,5 +42,13 @@ management:
       show-details: when-authorized
 
 jwt:
-  secret: ${JWT_SECRET:your-secret-key-min-256-bits-change-in-production-please-use-env-variable}
+  secret: ${JWT_SECRET:}  # Required - application will fail to start if not set
   expiration: 86400000  # 24 hours in milliseconds
+
+# OpenAPI/Swagger Documentation
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
