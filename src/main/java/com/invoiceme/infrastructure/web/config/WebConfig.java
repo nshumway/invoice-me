@@ -13,6 +13,8 @@ public class WebConfig implements WebMvcConfigurer {
                 .allowedOrigins("http://localhost:5173")
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
-                .allowCredentials(true);
+                // Credentials disabled - we use stateless JWT in Authorization header, not cookies
+                // This prevents CSRF attacks if cookies were accidentally added in the future
+                .allowCredentials(false);
     }
 }

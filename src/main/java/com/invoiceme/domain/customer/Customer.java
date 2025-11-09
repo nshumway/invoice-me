@@ -2,14 +2,8 @@ package com.invoiceme.domain.customer;
 
 import com.invoiceme.domain.common.BaseEntity;
 import com.invoiceme.domain.common.exceptions.ValidationException;
-import com.invoiceme.application.customer.dto.*;
-import com.invoiceme.infrastructure.persistence.CustomerRepository;
-import com.invoiceme.application.invoice.InvoiceService;
-import com.invoiceme.application.invoice.dto.UpdateInvoiceRequest;
-import com.invoiceme.domain.invoice.Invoice;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
-import java.util.List;
 
 @Entity
 @Table(name = "customers")
@@ -55,35 +49,37 @@ public class Customer extends BaseEntity {
 
     // === CREATE OPERATION ===
 
-    public void beforeCreate(CreateCustomerRequest request, CustomerRepository customerRepository) {
-        // Validate company name
-        if (request.getCompanyName() == null || request.getCompanyName().isBlank()) {
+    /**
+     * Validates business rules for customer creation.
+     * Infrastructure-level validation (email uniqueness) should be done in service layer.
+     */
+    public void validateForCreate(String companyName, String email) {
+        if (companyName == null || companyName.isBlank()) {
             throw new ValidationException("Company name is required");
         }
-
-        // Validate email required
-        if (request.getEmail() == null || request.getEmail().isBlank()) {
+        if (email == null || email.isBlank()) {
             throw new ValidationException("Email is required");
-        }
-
-        // Validate email uniqueness
-        if (customerRepository.existsByEmailAndIsDeletedFalse(request.getEmail())) {
-            throw new ValidationException("Customer with email " + request.getEmail() + " already exists");
         }
     }
 
-    public void create(CreateCustomerRequest request) {
-        this.companyName = request.getCompanyName();
-        this.contactFirstName = request.getContactFirstName();
-        this.contactLastName = request.getContactLastName();
-        this.email = request.getEmail();
-        this.phone = request.getPhone();
-        this.addressLine1 = request.getAddressLine1();
-        this.addressLine2 = request.getAddressLine2();
-        this.city = request.getCity();
-        this.state = request.getState();
-        this.zipCode = request.getZipCode();
-        this.country = request.getCountry();
+    /**
+     * Creates a new customer with the provided data.
+     * Call validateForCreate() before this method.
+     */
+    public void create(String companyName, String contactFirstName, String contactLastName,
+                      String email, String phone, String addressLine1, String addressLine2,
+                      String city, String state, String zipCode, String country) {
+        this.companyName = companyName;
+        this.contactFirstName = contactFirstName;
+        this.contactLastName = contactLastName;
+        this.email = email;
+        this.phone = phone;
+        this.addressLine1 = addressLine1;
+        this.addressLine2 = addressLine2;
+        this.city = city;
+        this.state = state;
+        this.zipCode = zipCode;
+        this.country = country;
 
         // Initialize read-only fields
         this.draftInvoiceCount = 0;
@@ -92,170 +88,102 @@ public class Customer extends BaseEntity {
         this.totalOutstanding = BigDecimal.ZERO;
     }
 
-    public void afterCreate() {
-        // No cascading operations needed for create
-    }
-
     // === UPDATE OPERATION ===
 
-    public void beforeUpdate(UpdateCustomerRequest request, boolean isSystemUpdate,
-                            CustomerRepository customerRepository) {
-        // Validate company name
-        if (request.getCompanyName() == null || request.getCompanyName().isBlank()) {
+    /**
+     * Validates business rules for customer update.
+     * Infrastructure-level validation (email uniqueness) should be done in service layer.
+     */
+    public void validateForUpdate(String companyName, String email, boolean isSystemUpdate) {
+        if (companyName == null || companyName.isBlank()) {
             throw new ValidationException("Company name is required");
         }
-
-        // Validate email required
-        if (request.getEmail() == null || request.getEmail().isBlank()) {
+        if (email == null || email.isBlank()) {
             throw new ValidationException("Email is required");
         }
-
-        // Validate email uniqueness (if changing)
-        if (!request.getEmail().equals(this.email)) {
-            if (customerRepository.existsByEmailAndIsDeletedFalse(request.getEmail())) {
-                throw new ValidationException("Customer with email " + request.getEmail() + " already exists");
-            }
-        }
-
-        // Prevent user from updating read-only fields
-        if (!isSystemUpdate) {
-            if (request.getDraftInvoiceCount() != null ||
-                request.getSentInvoiceCount() != null ||
-                request.getPaidInvoiceCount() != null ||
-                request.getTotalOutstanding() != null) {
-                throw new ValidationException("Cannot update system-managed fields");
-            }
-        }
     }
 
-    public void update(UpdateCustomerRequest request, boolean isSystemUpdate) {
-        // Update writable fields
-        if (request.getCompanyName() != null) {
-            this.companyName = request.getCompanyName();
-        }
-        if (request.getContactFirstName() != null) {
-            this.contactFirstName = request.getContactFirstName();
-        }
-        if (request.getContactLastName() != null) {
-            this.contactLastName = request.getContactLastName();
-        }
-        if (request.getEmail() != null) {
-            this.email = request.getEmail();
-        }
-        if (request.getPhone() != null) {
-            this.phone = request.getPhone();
-        }
-        if (request.getAddressLine1() != null) {
-            this.addressLine1 = request.getAddressLine1();
-        }
-        if (request.getAddressLine2() != null) {
-            this.addressLine2 = request.getAddressLine2();
-        }
-        if (request.getCity() != null) {
-            this.city = request.getCity();
-        }
-        if (request.getState() != null) {
-            this.state = request.getState();
-        }
-        if (request.getZipCode() != null) {
-            this.zipCode = request.getZipCode();
-        }
-        if (request.getCountry() != null) {
-            this.country = request.getCountry();
-        }
-
-        // System can update read-only fields
-        if (isSystemUpdate) {
-            if (request.getDraftInvoiceCount() != null) {
-                this.draftInvoiceCount = request.getDraftInvoiceCount();
-            }
-            if (request.getSentInvoiceCount() != null) {
-                this.sentInvoiceCount = request.getSentInvoiceCount();
-            }
-            if (request.getPaidInvoiceCount() != null) {
-                this.paidInvoiceCount = request.getPaidInvoiceCount();
-            }
-            if (request.getTotalOutstanding() != null) {
-                this.totalOutstanding = request.getTotalOutstanding();
-            }
-        }
+    /**
+     * Updates customer fields.
+     * Call validateForUpdate() before this method.
+     */
+    public void update(String companyName, String contactFirstName, String contactLastName,
+                      String email, String phone, String addressLine1, String addressLine2,
+                      String city, String state, String zipCode, String country) {
+        this.companyName = companyName;
+        this.contactFirstName = contactFirstName;
+        this.contactLastName = contactLastName;
+        this.email = email;
+        this.phone = phone;
+        this.addressLine1 = addressLine1;
+        this.addressLine2 = addressLine2;
+        this.city = city;
+        this.state = state;
+        this.zipCode = zipCode;
+        this.country = country;
     }
 
-    public void afterUpdate(String oldCompanyName,
-                           CustomerRepository customerRepository,
-                           InvoiceService invoiceService) {
-        // Cascade companyName change to all related invoices
-        if (!this.companyName.equals(oldCompanyName)) {
-            List<Invoice> invoices = customerRepository.getInvoicesForCustomer(this.getId());
-
-            for (Invoice invoice : invoices) {
-                // Create system update request
-                UpdateInvoiceRequest sysRequest = new UpdateInvoiceRequest();
-                sysRequest.setId(invoice.getId());
-                sysRequest.setVersion(invoice.getVersion());
-                sysRequest.setCustomerName(this.companyName);
-
-                // Call invoice service (joins same transaction, cascades to LineItems/Payments)
-                invoiceService.systemUpdateInvoice(sysRequest);
-            }
-        }
+    /**
+     * Returns the old company name before update for cascade detection.
+     * Service layer will check if name changed and cascade to invoices.
+     */
+    public String getOldCompanyName() {
+        return this.companyName;
     }
 
     // === DELETE OPERATION ===
 
-    public void beforeDelete(CustomerRepository customerRepository) {
-        // Cannot delete if customer has SENT invoices
-        List<Invoice> sentInvoices = customerRepository.getSentInvoicesForCustomer(this.getId());
-        if (!sentInvoices.isEmpty()) {
-            throw new ValidationException("Cannot delete customer with SENT invoices. " +
-                    "Customer has " + sentInvoices.size() + " invoice(s) in SENT status.");
-        }
-    }
-
+    /**
+     * Performs soft delete of the customer.
+     * Service layer should validate that customer can be deleted (no SENT invoices).
+     */
     public void delete() {
         this.markAsDeleted(); // Soft delete from BaseEntity
     }
 
-    public void afterDelete(CustomerRepository customerRepository, InvoiceService invoiceService) {
-        // Cascade delete to all related invoices (DRAFT and PAID only, SENT already validated)
-        List<Invoice> invoices = customerRepository.getInvoicesForCustomer(this.getId());
+    // === Helper Methods for Statistics (Address Issue #4) ===
 
-        for (Invoice invoice : invoices) {
-            // Each invoice delete will cascade to its LineItems and Payments
-            invoiceService.systemDeleteInvoice(invoice.getId());
-        }
-    }
-
-    // === Helper Methods ===
-
+    /**
+     * These methods are kept for backward compatibility but will be replaced
+     * with database-level atomic operations to fix race conditions.
+     * @deprecated Use CustomerService.updateStatistics() with atomic DB updates instead
+     */
+    @Deprecated
     public void incrementDraftInvoiceCount() {
         this.draftInvoiceCount++;
     }
 
+    @Deprecated
     public void decrementDraftInvoiceCount() {
         this.draftInvoiceCount--;
     }
 
+    @Deprecated
     public void incrementSentInvoiceCount() {
         this.sentInvoiceCount++;
     }
 
+    @Deprecated
     public void decrementSentInvoiceCount() {
         this.sentInvoiceCount--;
     }
 
+    @Deprecated
     public void incrementPaidInvoiceCount() {
         this.paidInvoiceCount++;
     }
 
+    @Deprecated
     public void decrementPaidInvoiceCount() {
         this.paidInvoiceCount--;
     }
 
+    @Deprecated
     public void addToTotalOutstanding(BigDecimal amount) {
         this.totalOutstanding = this.totalOutstanding.add(amount);
     }
 
+    @Deprecated
     public void subtractFromTotalOutstanding(BigDecimal amount) {
         this.totalOutstanding = this.totalOutstanding.subtract(amount);
     }

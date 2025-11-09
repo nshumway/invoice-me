@@ -3,9 +3,9 @@ package com.invoiceme.application.customer;
 import com.invoiceme.application.customer.dto.*;
 import com.invoiceme.domain.common.exceptions.NotFoundException;
 import com.invoiceme.domain.common.exceptions.OptimisticLockException;
+import com.invoiceme.domain.common.exceptions.ValidationException;
 import com.invoiceme.domain.customer.Customer;
 import com.invoiceme.infrastructure.persistence.CustomerRepository;
-import com.invoiceme.application.invoice.InvoiceService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -24,19 +24,35 @@ public class CustomerService {
     @Autowired
     private CustomerMapper customerMapper;
 
-    @Autowired
-    private InvoiceService invoiceService;
-
     // === CREATE ===
 
     @Transactional
     public CustomerResponse createCustomer(CreateCustomerRequest request) {
+        // Domain validation
         Customer customer = new Customer();
+        customer.validateForCreate(request.getCompanyName(), request.getEmail());
 
-        customer.beforeCreate(request, customerRepository);
-        customer.create(request);
+        // Infrastructure validation (email uniqueness)
+        if (customerRepository.existsByEmailAndIsDeletedFalse(request.getEmail())) {
+            throw new ValidationException("Customer with email " + request.getEmail() + " already exists");
+        }
+
+        // Create customer
+        customer.create(
+            request.getCompanyName(),
+            request.getContactFirstName(),
+            request.getContactLastName(),
+            request.getEmail(),
+            request.getPhone(),
+            request.getAddressLine1(),
+            request.getAddressLine2(),
+            request.getCity(),
+            request.getState(),
+            request.getZipCode(),
+            request.getCountry()
+        );
+
         customerRepository.save(customer);
-        customer.afterCreate();
 
         return customerMapper.toResponse(customer);
     }
@@ -45,17 +61,6 @@ public class CustomerService {
 
     @Transactional
     public CustomerResponse updateCustomer(UpdateCustomerRequest request) {
-        return doUpdate(request, false);
-    }
-
-    // === UPDATE (System-initiated) ===
-
-    @Transactional(propagation = Propagation.MANDATORY)
-    public CustomerResponse systemUpdateCustomer(UpdateCustomerRequest request) {
-        return doUpdate(request, true);
-    }
-
-    private CustomerResponse doUpdate(UpdateCustomerRequest request, boolean isSystemUpdate) {
         // Load entity
         Customer customer = customerRepository.findByIdAndIsDeletedFalse(request.getId())
                 .orElseThrow(() -> new NotFoundException("Customer not found"));
@@ -66,16 +71,45 @@ public class CustomerService {
                 "Customer was modified by another user. Please reload and try again.");
         }
 
-        // Capture old values for cascading
+        // Domain validation
+        customer.validateForUpdate(request.getCompanyName(), request.getEmail(), false);
+
+        // Infrastructure validation (email uniqueness if changing)
+        if (!request.getEmail().equals(customer.getEmail())) {
+            if (customerRepository.existsByEmailAndIsDeletedFalse(request.getEmail())) {
+                throw new ValidationException("Customer with email " + request.getEmail() + " already exists");
+            }
+        }
+
+        // Capture old company name for potential cascade (Phase 4-6)
         String oldCompanyName = customer.getCompanyName();
 
-        // Execute lifecycle
-        customer.beforeUpdate(request, isSystemUpdate, customerRepository);
-        customer.update(request, isSystemUpdate);
-        customerRepository.save(customer);
-        customer.afterUpdate(oldCompanyName, customerRepository, invoiceService);
+        // Update customer
+        customer.update(
+            request.getCompanyName(),
+            request.getContactFirstName(),
+            request.getContactLastName(),
+            request.getEmail(),
+            request.getPhone(),
+            request.getAddressLine1(),
+            request.getAddressLine2(),
+            request.getCity(),
+            request.getState(),
+            request.getZipCode(),
+            request.getCountry()
+        );
 
-        return customerMapper.toResponse(customer);
+        Customer saved = customerRepository.saveAndFlush(customer);
+
+        // TODO (Phase 4-6): If company name changed, cascade to invoices
+        // if (!customer.getCompanyName().equals(oldCompanyName)) {
+        //     List<Invoice> invoices = customerRepository.getInvoicesForCustomer(customer.getId());
+        //     for (Invoice invoice : invoices) {
+        //         invoiceService.updateCustomerName(invoice.getId(), customer.getCompanyName());
+        //     }
+        // }
+
+        return customerMapper.toResponse(saved);
     }
 
     // === DELETE ===
@@ -91,23 +125,22 @@ public class CustomerService {
                 "Customer was modified by another user. Please reload and try again.");
         }
 
-        customer.beforeDelete(customerRepository);
+        // TODO (Phase 4-6): Validate customer can be deleted (no SENT invoices)
+        // List<Invoice> sentInvoices = customerRepository.getSentInvoicesForCustomer(customer.getId());
+        // if (!sentInvoices.isEmpty()) {
+        //     throw new ValidationException("Cannot delete customer with SENT invoices. " +
+        //             "Customer has " + sentInvoices.size() + " invoice(s) in SENT status.");
+        // }
+
+        // Perform soft delete
         customer.delete();
         customerRepository.save(customer);
-        customer.afterDelete(customerRepository, invoiceService);
-    }
 
-    // === SYSTEM DELETE (Called from cascades) ===
-
-    @Transactional(propagation = Propagation.MANDATORY)
-    public void systemDeleteCustomer(UUID customerId) {
-        Customer customer = customerRepository.findByIdAndIsDeletedFalse(customerId)
-                .orElseThrow(() -> new NotFoundException("Customer not found"));
-
-        // System deletes skip some validations but still run lifecycle
-        customer.delete();
-        customerRepository.save(customer);
-        customer.afterDelete(customerRepository, invoiceService);
+        // TODO (Phase 4-6): Cascade delete to related invoices (DRAFT and PAID only)
+        // List<Invoice> invoices = customerRepository.getInvoicesForCustomer(customer.getId());
+        // for (Invoice invoice : invoices) {
+        //     invoiceService.deleteInvoice(invoice.getId());
+        // }
     }
 
     // === GET BY ID ===

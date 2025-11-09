@@ -17,23 +17,34 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthFilter;
+    private final RateLimitingFilter rateLimitingFilter;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter) {
+    // RateLimitingFilter is optional (not present in test profile)
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter,
+                         @org.springframework.beans.factory.annotation.Autowired(required = false) RateLimitingFilter rateLimitingFilter) {
         this.jwtAuthFilter = jwtAuthFilter;
+        this.rateLimitingFilter = rateLimitingFilter;
     }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(csrf -> csrf.disable())
+            .csrf(csrf -> csrf.disable())  // CSRF disabled for stateless JWT API
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-            )
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+            );
+
+        // Add rate limiting filter if present (not in test profile)
+        if (rateLimitingFilter != null) {
+            http.addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter.class);
+        }
+
+        // JWT authentication filter
+        http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

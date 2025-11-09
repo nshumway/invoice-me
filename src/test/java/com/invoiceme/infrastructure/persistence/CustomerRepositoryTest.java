@@ -36,15 +36,20 @@ class CustomerRepositoryTest {
         UserContext.clear();
     }
 
+    /**
+     * Helper method to create a customer for testing.
+     * Handles the new entity API without infrastructure dependencies.
+     */
+    private Customer createCustomer(String companyName, String email) {
+        Customer customer = new Customer();
+        customer.validateForCreate(companyName, email);
+        customer.create(companyName, null, null, email, null, null, null, null, null, null, null);
+        return customer;
+    }
+
     @Test
     void testSaveAndFindById() {
-        CreateCustomerRequest request = new CreateCustomerRequest();
-        request.setCompanyName("Test Company");
-        request.setEmail("test@example.com");
-
-        Customer customer = new Customer();
-        customer.beforeCreate(request, customerRepository);
-        customer.create(request);
+        Customer customer = createCustomer("Test Company", "test@example.com");
 
         Customer saved = customerRepository.save(customer);
 
@@ -61,13 +66,7 @@ class CustomerRepositoryTest {
 
     @Test
     void testExistsByEmailReturnsTrueWhenExists() {
-        CreateCustomerRequest request = new CreateCustomerRequest();
-        request.setCompanyName("Email Test Corp");
-        request.setEmail("unique@example.com");
-
-        Customer customer = new Customer();
-        customer.beforeCreate(request, customerRepository);
-        customer.create(request);
+        Customer customer = createCustomer("Email Test Corp", "unique@example.com");
         customerRepository.save(customer);
 
         assertTrue(customerRepository.existsByEmailAndIsDeletedFalse("unique@example.com"));
@@ -80,13 +79,7 @@ class CustomerRepositoryTest {
 
     @Test
     void testFindByIdExcludesDeletedCustomers() {
-        CreateCustomerRequest request = new CreateCustomerRequest();
-        request.setCompanyName("To Be Deleted");
-        request.setEmail("deleted@example.com");
-
-        Customer customer = new Customer();
-        customer.beforeCreate(request, customerRepository);
-        customer.create(request);
+        Customer customer = createCustomer("To Be Deleted", "deleted@example.com");
         Customer saved = customerRepository.save(customer);
 
         UUID customerId = saved.getId();
@@ -161,13 +154,7 @@ class CustomerRepositoryTest {
 
     @Test
     void testExistsByEmailIgnoresDeletedCustomers() {
-        CreateCustomerRequest request = new CreateCustomerRequest();
-        request.setCompanyName("Deleted Customer");
-        request.setEmail("deleted@test.com");
-
-        Customer customer = new Customer();
-        customer.beforeCreate(request, customerRepository);
-        customer.create(request);
+        Customer customer = createCustomer("Deleted Customer", "deleted@test.com");
         Customer saved = customerRepository.save(customer);
 
         // Email should exist
@@ -183,13 +170,7 @@ class CustomerRepositoryTest {
 
     @Test
     void testOptimisticLocking() {
-        CreateCustomerRequest request = new CreateCustomerRequest();
-        request.setCompanyName("Lock Test Corp");
-        request.setEmail("lock@test.com");
-
-        Customer customer = new Customer();
-        customer.beforeCreate(request, customerRepository);
-        customer.create(request);
+        Customer customer = createCustomer("Lock Test Corp", "lock@test.com");
         Customer saved = customerRepository.save(customer);
 
         assertEquals(0L, saved.getVersion());
@@ -216,13 +197,7 @@ class CustomerRepositoryTest {
     }
 
     private Customer createAndSaveCustomer(String companyName, String email) {
-        CreateCustomerRequest request = new CreateCustomerRequest();
-        request.setCompanyName(companyName);
-        request.setEmail(email);
-
-        Customer customer = new Customer();
-        customer.beforeCreate(request, customerRepository);
-        customer.create(request);
+        Customer customer = createCustomer(companyName, email);
         return customerRepository.save(customer);
     }
 }

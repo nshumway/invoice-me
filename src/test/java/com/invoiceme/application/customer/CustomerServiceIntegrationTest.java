@@ -2,6 +2,7 @@ package com.invoiceme.application.customer;
 
 import com.invoiceme.application.common.UserContext;
 import com.invoiceme.application.customer.dto.*;
+import com.invoiceme.config.TestSecurityConfig;
 import com.invoiceme.domain.common.exceptions.NotFoundException;
 import com.invoiceme.domain.common.exceptions.OptimisticLockException;
 import com.invoiceme.domain.common.exceptions.ValidationException;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -21,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @Transactional
+@Import(TestSecurityConfig.class)  // Use test security config without rate limiting
 class CustomerServiceIntegrationTest {
 
     @Autowired

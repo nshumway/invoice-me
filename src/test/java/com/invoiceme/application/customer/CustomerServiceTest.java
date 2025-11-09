@@ -2,7 +2,6 @@ package com.invoiceme.application.customer;
 
 import com.invoiceme.application.common.UserContext;
 import com.invoiceme.application.customer.dto.*;
-import com.invoiceme.application.invoice.InvoiceService;
 import com.invoiceme.domain.common.exceptions.NotFoundException;
 import com.invoiceme.domain.common.exceptions.OptimisticLockException;
 import com.invoiceme.domain.customer.Customer;
@@ -33,15 +32,13 @@ class CustomerServiceTest {
 
     private CustomerService customerService;
 
-    // Use real services instead of mocks (Java 25 Mockito limitation)
+    // Use real mapper (not mocked)
     private CustomerMapper customerMapper;
-    private InvoiceService invoiceService;
 
     @BeforeEach
     void setUp() {
         UserContext.setCurrentUser(UUID.randomUUID());
         customerMapper = new CustomerMapper();
-        invoiceService = new InvoiceService();
         customerService = new CustomerService();
         // Use reflection to inject dependencies
         try {
@@ -52,10 +49,6 @@ class CustomerServiceTest {
             var mapperField = CustomerService.class.getDeclaredField("customerMapper");
             mapperField.setAccessible(true);
             mapperField.set(customerService, customerMapper);
-
-            var invoiceField = CustomerService.class.getDeclaredField("invoiceService");
-            invoiceField.setAccessible(true);
-            invoiceField.set(customerService, invoiceService);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -111,10 +104,13 @@ class CustomerServiceTest {
                 .thenReturn(Optional.of(existingCustomer));
         when(customerRepository.existsByEmailAndIsDeletedFalse("updated@example.com"))
                 .thenReturn(false);
-        when(customerRepository.save(any(Customer.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-        when(customerRepository.getInvoicesForCustomer(customerId))
-                .thenReturn(Arrays.asList());
+        when(customerRepository.saveAndFlush(any(Customer.class)))
+                .thenAnswer(invocation -> {
+                    Customer c = invocation.getArgument(0);
+                    // Simulate version increment
+                    c.setVersion(c.getVersion() + 1);
+                    return c;
+                });
 
         CustomerResponse result = customerService.updateCustomer(request);
 
@@ -122,7 +118,7 @@ class CustomerServiceTest {
         assertEquals("Updated Corp", result.getCompanyName());
 
         verify(customerRepository).findByIdAndIsDeletedFalse(customerId);
-        verify(customerRepository).save(any(Customer.class));
+        verify(customerRepository).saveAndFlush(any(Customer.class));
     }
 
     @Test
@@ -187,10 +183,6 @@ class CustomerServiceTest {
 
         when(customerRepository.findByIdAndIsDeletedFalse(customerId))
                 .thenReturn(Optional.of(existingCustomer));
-        when(customerRepository.getSentInvoicesForCustomer(customerId))
-                .thenReturn(Arrays.asList());  // No sent invoices
-        when(customerRepository.getInvoicesForCustomer(customerId))
-                .thenReturn(Arrays.asList());  // No invoices at all
 
         customerService.deleteCustomer(request);
 

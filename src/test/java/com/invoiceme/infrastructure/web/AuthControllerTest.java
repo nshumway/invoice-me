@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.invoiceme.application.common.UserContext;
 import com.invoiceme.application.user.dto.CreateUserRequest;
 import com.invoiceme.application.user.dto.LoginRequest;
+import com.invoiceme.config.TestSecurityConfig;
 import com.invoiceme.domain.user.User;
 import com.invoiceme.infrastructure.persistence.UserRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
@@ -28,6 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional
+@Import(TestSecurityConfig.class)  // Use test security config without rate limiting
 class AuthControllerTest {
 
     @Autowired
