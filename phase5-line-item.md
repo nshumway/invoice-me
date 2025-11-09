@@ -43,16 +43,16 @@ This phase implements complete LineItem CRUD functionality with automatic invoic
 **LineItem Entity Responsibilities:**
 - Calculates lineTotal (quantity × unitPrice) on create/update
 - Validates business rules (positive quantity, positive unitPrice)
-- Triggers invoice total recalculation after create/update/delete
-- Receives cascaded customerName updates from Invoice
+- Publishes domain events (LineItemChangedEvent) to trigger invoice total recalculation
+- Subscribes to CustomerNameChangedEvent to update denormalized customerName field
 
 **Key Patterns:**
 - **Automatic Calculation:** lineTotal = quantity × unitPrice
-- **Cascade Recalculation:** LineItem operations trigger Invoice.total recalculation
+- **Event-Driven Recalculation:** LineItem publishes LineItemChangedEvent, InvoiceService subscribes and recalculates total
 - **Status Validation:** LineItems can only be modified when Invoice.status = DRAFT
 - **Soft Deletes:** isDeleted flag, preserves audit trail
 - **Audit Trail:** createdBy, lastModifiedBy via UserContext
-- **Denormalized customerName:** Copied from Invoice.customerName, updated via cascade
+- **Denormalized customerName:** Updated via subscription to CustomerNameChangedEvent
 
 ### Transaction Flow
 
@@ -64,28 +64,36 @@ This phase implements complete LineItem CRUD functionality with automatic invoic
 4. LineItem.beforeCreate() validates invoice is DRAFT
 5. LineItem.create() sets fields, calculates lineTotal
 6. Service saves LineItem
-7. LineItem.afterCreate() triggers invoice total recalculation:
-   - Calls InvoiceService.recalculateInvoiceTotal(invoiceId)
-   - InvoiceService queries all line items, sums lineTotals
+7. LineItem.afterCreate() publishes LineItemChangedEvent
+8. InvoiceService listens for LineItemChangedEvent and recalculates:
+   - Queries all line items, sums lineTotals
    - Updates Invoice.total
-8. Transaction commits
+9. Transaction commits
 ```
 
-**Invoice Total Recalculation:**
+**Invoice Total Recalculation (Event-Driven):**
 ```
--- Triggered after any LineItem create/update/delete
+LineItem publishes LineItemChangedEvent containing:
+- invoiceId
+- changeType (CREATED, UPDATED, DELETED)
+
+InvoiceService subscribes with @EventListener and:
 SELECT SUM(line_total)
 FROM line_items
 WHERE invoice_id = ? AND is_deleted = FALSE
+
+Updates Invoice.total
 ```
 
-**System Cascade from Invoice to LineItem:**
+**Event-Driven Architecture for CustomerName Updates:**
 ```
-When Invoice.customerName changes (via Customer update):
-1. Invoice.afterUpdate() calls LineItemService.updateCustomerNameForInvoice()
-2. LineItemService loads all line items for invoice
-3. Updates customerName on each line item
-4. Uses isSystemUpdate=true to bypass status checks
+When Customer.companyName changes:
+1. Customer publishes CustomerNameChangedEvent
+2. InvoiceService listens and updates all invoices for that customer
+3. InvoiceService publishes InvoiceCustomerNameChangedEvent for each invoice
+4. LineItemService listens and updates all line items for affected invoices
+5. PaymentService listens and updates all payments for affected invoices
+6. All updates happen within same transaction
 ```
 
 ---
@@ -249,9 +257,13 @@ public class LineItem extends BaseEntity {
         this.lineTotal = calculateLineTotal(this.quantity, this.unitPrice);
     }
 
-    public void afterCreate(InvoiceService invoiceService) {
-        // Trigger invoice total recalculation
-        invoiceService.recalculateInvoiceTotal(this.invoiceId);
+    public void afterCreate(ApplicationEventPublisher eventPublisher) {
+        // Publish domain event: Line item changed
+        eventPublisher.publishEvent(new LineItemChangedEvent(
+            this.invoiceId,
+            this.id,
+            LineItemChangeType.CREATED
+        ));
     }
 
     private BigDecimal calculateLineTotal(BigDecimal quantity, BigDecimal unitPrice) {
@@ -421,7 +433,7 @@ public class LineItemService {
     private InvoiceRepository invoiceRepository;
 
     @Autowired
-    private InvoiceService invoiceService;
+    private ApplicationEventPublisher eventPublisher;
 
     @Autowired
     private LineItemMapper lineItemMapper;
@@ -437,26 +449,59 @@ public class LineItemService {
         lineItem.beforeCreate(request, invoice);
         lineItem.create(request, invoice);
         lineItemRepository.save(lineItem);
-        lineItem.afterCreate(invoiceService);
+        lineItem.afterCreate(eventPublisher);  // Publishes LineItemChangedEvent
 
         return lineItemMapper.toResponse(lineItem);
     }
+
+    // Event listener for customer name changes from Invoice
+    @EventListener
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void onInvoiceCustomerNameChanged(InvoiceCustomerNameChangedEvent event) {
+        // Update denormalized customerName on all line items for this invoice
+        List<LineItem> lineItems = lineItemRepository.findAllByInvoiceIdAndIsDeletedFalseOrderByCreatedAtAsc(event.getInvoiceId());
+
+        for (LineItem lineItem : lineItems) {
+            lineItem.setCustomerName(event.getNewCustomerName());
+            lineItemRepository.save(lineItem);
+        }
+    }
 }
 
-// InvoiceService.java (new method needed)
+// InvoiceService.java - Event listener for line item changes
+@EventListener
 @Transactional(propagation = Propagation.MANDATORY)
-public void recalculateInvoiceTotal(UUID invoiceId) {
-    Invoice invoice = invoiceRepository.findByIdAndIsDeletedFalse(invoiceId)
+public void onLineItemChanged(LineItemChangedEvent event) {
+    Invoice invoice = invoiceRepository.findByIdAndIsDeletedFalse(event.getInvoiceId())
             .orElseThrow(() -> new NotFoundException("Invoice not found"));
 
     // Query sum of all line items
-    BigDecimal newTotal = lineItemRepository.sumLineTotalsByInvoiceId(invoiceId);
+    BigDecimal newTotal = lineItemRepository.sumLineTotalsByInvoiceId(event.getInvoiceId());
     if (newTotal == null) {
         newTotal = BigDecimal.ZERO;
     }
 
     invoice.setTotal(newTotal);
     invoiceRepository.save(invoice);
+}
+
+// InvoiceService.java - Publish event when customerName changes (for downstream updates)
+@EventListener
+@Transactional(propagation = Propagation.MANDATORY)
+public void onCustomerNameChanged(CustomerNameChangedEvent event) {
+    // Update denormalized customerName on all invoices for this customer
+    List<Invoice> invoices = invoiceRepository.findAllByCustomerIdAndIsDeletedFalse(event.getCustomerId());
+
+    for (Invoice invoice : invoices) {
+        invoice.setCustomerName(event.getNewCompanyName());
+        invoiceRepository.save(invoice);
+
+        // Publish event for downstream entities (LineItems, Payments)
+        eventPublisher.publishEvent(new InvoiceCustomerNameChangedEvent(
+            invoice.getId(),
+            event.getNewCompanyName()
+        ));
+    }
 }
 ```
 
@@ -952,9 +997,13 @@ public void update(UpdateLineItemRequest request) {
     this.lineTotal = calculateLineTotal(this.quantity, this.unitPrice);
 }
 
-public void afterUpdate(InvoiceService invoiceService) {
-    // Trigger invoice total recalculation
-    invoiceService.recalculateInvoiceTotal(this.invoiceId);
+public void afterUpdate(ApplicationEventPublisher eventPublisher) {
+    // Publish domain event: Line item changed
+    eventPublisher.publishEvent(new LineItemChangedEvent(
+        this.invoiceId,
+        this.id,
+        LineItemChangeType.UPDATED
+    ));
 }
 
 // LineItemService.java
@@ -975,7 +1024,7 @@ public LineItemResponse updateLineItem(UpdateLineItemRequest request, boolean is
     lineItem.beforeUpdate(request, invoice, isSystemUpdate);
     lineItem.update(request);
     lineItemRepository.save(lineItem);
-    lineItem.afterUpdate(invoiceService);
+    lineItem.afterUpdate(eventPublisher);  // Publishes LineItemChangedEvent
 
     return lineItemMapper.toResponse(lineItem);
 }
@@ -986,16 +1035,8 @@ public LineItemResponse updateLineItem(UpdateLineItemRequest request) {
     return updateLineItem(request, false);
 }
 
-// System method for cascades (customerName updates)
-@Transactional(propagation = Propagation.MANDATORY)
-public void updateCustomerNameForInvoice(UUID invoiceId, String newCustomerName) {
-    List<LineItem> lineItems = lineItemRepository.findAllByInvoiceIdAndIsDeletedFalseOrderByCreatedAtAsc(invoiceId);
-
-    for (LineItem lineItem : lineItems) {
-        lineItem.setCustomerName(newCustomerName);
-        lineItemRepository.save(lineItem);
-    }
-}
+// Note: Customer name updates are handled via InvoiceCustomerNameChangedEvent
+// See onInvoiceCustomerNameChanged() event listener above
 ```
 
 ---
@@ -1073,9 +1114,13 @@ public void delete() {
     this.markAsDeleted(); // Soft delete from BaseEntity
 }
 
-public void afterDelete(InvoiceService invoiceService) {
-    // Trigger invoice total recalculation
-    invoiceService.recalculateInvoiceTotal(this.invoiceId);
+public void afterDelete(ApplicationEventPublisher eventPublisher) {
+    // Publish domain event: Line item changed
+    eventPublisher.publishEvent(new LineItemChangedEvent(
+        this.invoiceId,
+        this.id,
+        LineItemChangeType.DELETED
+    ));
 }
 
 // LineItemService.java
@@ -1096,7 +1141,7 @@ public void deleteLineItem(UUID lineItemId, Long version, boolean isSystemUpdate
     lineItem.beforeDelete(invoice, isSystemUpdate);
     lineItem.delete();
     lineItemRepository.save(lineItem);
-    lineItem.afterDelete(invoiceService);
+    lineItem.afterDelete(eventPublisher);  // Publishes LineItemChangedEvent
 }
 
 // Public method for user deletes
@@ -1105,17 +1150,18 @@ public void deleteLineItem(UUID lineItemId, Long version) {
     deleteLineItem(lineItemId, version, false);
 }
 
-// System method for cascade delete when invoice is deleted
+// Event listener for invoice deletion (cascade delete)
+@EventListener
 @Transactional(propagation = Propagation.MANDATORY)
-public void deleteAllForInvoice(UUID invoiceId) {
-    List<LineItem> lineItems = lineItemRepository.findAllByInvoiceIdAndIsDeletedFalseOrderByCreatedAtAsc(invoiceId);
+public void onInvoiceDeleted(InvoiceDeletedEvent event) {
+    List<LineItem> lineItems = lineItemRepository.findAllByInvoiceIdAndIsDeletedFalseOrderByCreatedAtAsc(event.getInvoiceId());
 
     for (LineItem lineItem : lineItems) {
         lineItem.beforeDelete(null, true); // isSystemUpdate=true, skip invoice check
         lineItem.delete();
         lineItemRepository.save(lineItem);
+        // Note: Don't publish LineItemChangedEvent since invoice is being deleted
     }
-    // Note: No afterDelete() call needed since invoice is being deleted
 }
 ```
 

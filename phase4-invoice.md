@@ -51,7 +51,7 @@ This phase implements complete Invoice CRUD functionality with status management
 **Invoice Entity Responsibilities:**
 - Validates business rules (invoice number uniqueness, status transitions)
 - Manages lifecycle: beforeCreate/create/afterCreate, beforeUpdate/update/afterUpdate, etc.
-- Orchestrates cascading updates to Customer entity
+- Publishes domain events for state changes that other domains need to know about
 - Enforces immutability rules (customerId cannot change, SENT invoices cannot be user-edited)
 
 **Status Lifecycle:**
@@ -84,10 +84,18 @@ DRAFT ──────────────> SENT ────────�
 6. Invoice.beforeCreate() validates business rules
 7. Invoice.create() sets all fields, generates invoiceNumber if not provided
 8. Service saves Invoice (queued, not committed)
-9. Invoice.afterCreate() increments Customer.draftInvoiceCount via cascade
-10. Transaction commits
-11. Service returns InvoiceResponse
+9. Invoice.afterCreate() publishes InvoiceCreatedEvent
+10. ApplicationEventPublisher dispatches event (synchronous, within transaction)
+11. CustomerService listens for InvoiceCreatedEvent and increments draftInvoiceCount
+12. Transaction commits (or rolls back if any step fails)
+13. Service returns InvoiceResponse
 ```
+
+**Key Architecture Note: Domain Events vs Direct Coupling**
+- Invoices do NOT directly call CustomerService methods
+- Instead, Invoice publishes domain events (InvoiceCreatedEvent, InvoiceStatusChangedEvent, etc.)
+- CustomerService subscribes to these events via @EventListener
+- This maintains domain boundary separation and prevents circular dependencies
 
 **Mark as Sent Flow:**
 ```
@@ -97,17 +105,20 @@ DRAFT ──────────────> SENT ────────�
 4. Invoice.beforeSend() validates (status=DRAFT, total>0)
 5. Invoice.send() sets status=SENT, invoiceDate=now
 6. Service saves Invoice
-7. Invoice.afterSend() cascades to Customer:
+7. Invoice.afterSend() publishes InvoiceStatusChangedEvent (DRAFT → SENT)
+8. CustomerService listens for InvoiceStatusChangedEvent and updates:
    - Decrement draftInvoiceCount
    - Increment sentInvoiceCount
    - Add invoice.total to totalOutstanding
-8. Transaction commits
+9. Transaction commits
 ```
 
-**System Cascade vs User Update:**
-- User updates: `InvoiceService.updateInvoice(request, isSystemUpdate=false)`
-- System cascades: Called from Customer.afterUpdate() with `isSystemUpdate=true`
-- System updates can modify read-only fields, bypass status restrictions
+**Event-Driven Architecture for Cross-Domain Updates:**
+- Customer domain publishes CustomerNameChangedEvent when companyName changes
+- InvoiceService subscribes to CustomerNameChangedEvent via @EventListener
+- InvoiceService updates denormalized customerName field on all invoices for that customer
+- System updates use @Transactional(propagation = MANDATORY) to participate in parent transaction
+- Events are published synchronously within the same transaction for consistency
 
 ---
 
@@ -304,9 +315,13 @@ public class Invoice extends BaseEntity {
         this.amountPaid = BigDecimal.ZERO;
     }
 
-    public void afterCreate(CustomerService customerService) {
-        // Cascade: Increment customer's draftInvoiceCount
-        customerService.incrementDraftInvoiceCount(this.customerId);
+    public void afterCreate(ApplicationEventPublisher eventPublisher) {
+        // Publish domain event: Invoice created
+        eventPublisher.publishEvent(new InvoiceCreatedEvent(
+            this.id,
+            this.customerId,
+            InvoiceStatus.DRAFT
+        ));
     }
 
     private String generateInvoiceNumber() {
@@ -517,7 +532,7 @@ public class InvoiceService {
     private CustomerRepository customerRepository;
 
     @Autowired
-    private CustomerService customerService;
+    private ApplicationEventPublisher eventPublisher;
 
     @Autowired
     private InvoiceMapper invoiceMapper;
@@ -533,19 +548,37 @@ public class InvoiceService {
         invoice.beforeCreate(request, customer, invoiceRepository);
         invoice.create(request, customer);
         invoiceRepository.save(invoice);
-        invoice.afterCreate(customerService);
+        invoice.afterCreate(eventPublisher);  // Publishes InvoiceCreatedEvent
 
         return invoiceMapper.toResponse(invoice);
     }
+
+    // Event listener for customer name changes
+    @EventListener
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void onCustomerNameChanged(CustomerNameChangedEvent event) {
+        // Update denormalized customerName on all invoices for this customer
+        List<Invoice> invoices = invoiceRepository.findAllByCustomerIdAndIsDeletedFalse(event.getCustomerId());
+
+        for (Invoice invoice : invoices) {
+            invoice.setCustomerName(event.getNewCompanyName());
+            invoiceRepository.save(invoice);
+        }
+    }
 }
 
-// CustomerService.java (new method needed)
+// CustomerService.java (event listener for invoice events)
 @Service
 public class CustomerService {
 
+    @Autowired
+    private CustomerRepository customerRepository;
+
+    // Event listener for invoice created
+    @EventListener
     @Transactional(propagation = Propagation.MANDATORY)
-    public void incrementDraftInvoiceCount(UUID customerId) {
-        Customer customer = customerRepository.findByIdAndIsDeletedFalse(customerId)
+    public void onInvoiceCreated(InvoiceCreatedEvent event) {
+        Customer customer = customerRepository.findByIdAndIsDeletedFalse(event.getCustomerId())
                 .orElseThrow(() -> new NotFoundException("Customer not found"));
 
         customer.setDraftInvoiceCount(customer.getDraftInvoiceCount() + 1);
@@ -1105,9 +1138,9 @@ public void update(UpdateInvoiceRequest request) {
     // Note: customerId is NOT editable
 }
 
-public void afterUpdate(LineItemService lineItemService, PaymentService paymentService) {
-    // If customerName changed (system cascade), cascade to line items and payments
-    // Will implement in Phase 5 and 6
+public void afterUpdate(ApplicationEventPublisher eventPublisher) {
+    // No domain events needed for invoice updates
+    // Customer name changes are handled via CustomerNameChangedEvent from Customer domain
 }
 
 // InvoiceService.java
@@ -1124,7 +1157,7 @@ public InvoiceResponse updateInvoice(UpdateInvoiceRequest request, boolean isSys
     invoice.beforeUpdate(request, invoiceRepository, isSystemUpdate);
     invoice.update(request);
     invoiceRepository.save(invoice);
-    invoice.afterUpdate(lineItemService, paymentService);
+    invoice.afterUpdate(eventPublisher);
 
     return invoiceMapper.toResponse(invoice);
 }
@@ -1135,16 +1168,8 @@ public InvoiceResponse updateInvoice(UpdateInvoiceRequest request) {
     return updateInvoice(request, false);
 }
 
-// System method for cascades
-@Transactional(propagation = Propagation.MANDATORY)
-public void updateInvoiceCustomerName(UUID invoiceId, String newCustomerName) {
-    Invoice invoice = invoiceRepository.findByIdAndIsDeletedFalse(invoiceId)
-            .orElseThrow(() -> new NotFoundException("Invoice not found"));
-
-    invoice.setCustomerName(newCustomerName);
-    invoiceRepository.save(invoice);
-    invoice.afterUpdate(lineItemService, paymentService);
-}
+// Note: Customer name updates are handled via CustomerNameChangedEvent
+// See onCustomerNameChanged() event listener above
 ```
 
 **Testing Approach:**
@@ -1323,20 +1348,33 @@ public void send() {
     this.invoiceDate = Instant.now();
 }
 
-public void afterSend(CustomerService customerService) {
-    // Cascade to customer
-    customerService.updateInvoiceCountsOnSend(this.customerId, this.total);
+public void afterSend(ApplicationEventPublisher eventPublisher) {
+    // Publish domain event: Invoice status changed DRAFT → SENT
+    eventPublisher.publishEvent(new InvoiceStatusChangedEvent(
+        this.id,
+        this.customerId,
+        InvoiceStatus.DRAFT,  // oldStatus
+        InvoiceStatus.SENT,   // newStatus
+        this.total
+    ));
 }
 
-// CustomerService.java
+// CustomerService.java - Event listener for invoice status changes
+@EventListener
 @Transactional(propagation = Propagation.MANDATORY)
-public void updateInvoiceCountsOnSend(UUID customerId, BigDecimal invoiceTotal) {
-    Customer customer = customerRepository.findByIdAndIsDeletedFalse(customerId)
+public void onInvoiceStatusChanged(InvoiceStatusChangedEvent event) {
+    Customer customer = customerRepository.findByIdAndIsDeletedFalse(event.getCustomerId())
             .orElseThrow(() -> new NotFoundException("Customer not found"));
 
-    customer.setDraftInvoiceCount(customer.getDraftInvoiceCount() - 1);
-    customer.setSentInvoiceCount(customer.getSentInvoiceCount() + 1);
-    customer.setTotalOutstanding(customer.getTotalOutstanding().add(invoiceTotal));
+    // Handle DRAFT → SENT transition
+    if (event.getOldStatus() == InvoiceStatus.DRAFT && event.getNewStatus() == InvoiceStatus.SENT) {
+        customer.setDraftInvoiceCount(customer.getDraftInvoiceCount() - 1);
+        customer.setSentInvoiceCount(customer.getSentInvoiceCount() + 1);
+        customer.setTotalOutstanding(customer.getTotalOutstanding().add(event.getInvoiceTotal()));
+    }
+
+    // Handle SENT → PAID transition (will be implemented in Phase 6)
+    // ...
 
     customerRepository.save(customer);
 }
@@ -1355,7 +1393,7 @@ public InvoiceResponse markInvoiceAsSent(UUID invoiceId, Long version) {
     invoice.beforeSend();
     invoice.send();
     invoiceRepository.save(invoice);
-    invoice.afterSend(customerService);
+    invoice.afterSend(eventPublisher);  // Publishes InvoiceStatusChangedEvent
 
     return invoiceMapper.toResponse(invoice);
 }
@@ -1492,38 +1530,56 @@ public void delete() {
     this.markAsDeleted(); // Soft delete from BaseEntity
 }
 
-public void afterDelete(CustomerService customerService,
-                       LineItemService lineItemService,
-                       PaymentService paymentService) {
-    // Cascade delete line items and payments
-    lineItemService.deleteAllForInvoice(this.id);
-    paymentService.deleteAllForInvoice(this.id);
+public void afterDelete(ApplicationEventPublisher eventPublisher) {
+    // Publish domain event: Invoice deleted
+    eventPublisher.publishEvent(new InvoiceDeletedEvent(
+        this.id,
+        this.customerId,
+        this.status
+    ));
+}
 
-    // Update customer counts
-    if (this.status == InvoiceStatus.DRAFT) {
-        customerService.decrementDraftInvoiceCount(this.customerId);
-    } else if (this.status == InvoiceStatus.PAID) {
-        customerService.decrementPaidInvoiceCount(this.customerId);
+// CustomerService.java - Event listener for invoice deletion
+@EventListener
+@Transactional(propagation = Propagation.MANDATORY)
+public void onInvoiceDeleted(InvoiceDeletedEvent event) {
+    Customer customer = customerRepository.findByIdAndIsDeletedFalse(event.getCustomerId())
+            .orElseThrow(() -> new NotFoundException("Customer not found"));
+
+    // Update customer counts based on invoice status
+    if (event.getInvoiceStatus() == InvoiceStatus.DRAFT) {
+        customer.setDraftInvoiceCount(customer.getDraftInvoiceCount() - 1);
+    } else if (event.getInvoiceStatus() == InvoiceStatus.PAID) {
+        customer.setPaidInvoiceCount(customer.getPaidInvoiceCount() - 1);
+    }
+
+    customerRepository.save(customer);
+}
+
+// LineItemService.java - Event listener for invoice deletion
+@EventListener
+@Transactional(propagation = Propagation.MANDATORY)
+public void onInvoiceDeleted(InvoiceDeletedEvent event) {
+    // Cascade delete all line items for this invoice
+    List<LineItem> lineItems = lineItemRepository.findAllByInvoiceIdAndIsDeletedFalseOrderByCreatedAtAsc(event.getInvoiceId());
+
+    for (LineItem lineItem : lineItems) {
+        lineItem.delete();
+        lineItemRepository.save(lineItem);
     }
 }
 
-// CustomerService.java
+// PaymentService.java - Event listener for invoice deletion
+@EventListener
 @Transactional(propagation = Propagation.MANDATORY)
-public void decrementDraftInvoiceCount(UUID customerId) {
-    Customer customer = customerRepository.findByIdAndIsDeletedFalse(customerId)
-            .orElseThrow(() -> new NotFoundException("Customer not found"));
+public void onInvoiceDeleted(InvoiceDeletedEvent event) {
+    // Cascade delete all payments for this invoice
+    List<Payment> payments = paymentRepository.findAllByInvoiceIdAndIsDeletedFalseOrderByPaymentDateAsc(event.getInvoiceId());
 
-    customer.setDraftInvoiceCount(customer.getDraftInvoiceCount() - 1);
-    customerRepository.save(customer);
-}
-
-@Transactional(propagation = Propagation.MANDATORY)
-public void decrementPaidInvoiceCount(UUID customerId) {
-    Customer customer = customerRepository.findByIdAndIsDeletedFalse(customerId)
-            .orElseThrow(() -> new NotFoundException("Customer not found"));
-
-    customer.setPaidInvoiceCount(customer.getPaidInvoiceCount() - 1);
-    customerRepository.save(customer);
+    for (Payment payment : payments) {
+        payment.delete();
+        paymentRepository.save(payment);
+    }
 }
 
 // InvoiceService.java
@@ -1540,7 +1596,7 @@ public void deleteInvoice(UUID invoiceId, Long version) {
     invoice.beforeDelete();
     invoice.delete();
     invoiceRepository.save(invoice);
-    invoice.afterDelete(customerService, lineItemService, paymentService);
+    invoice.afterDelete(eventPublisher);  // Publishes InvoiceDeletedEvent
 }
 ```
 

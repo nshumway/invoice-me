@@ -44,33 +44,37 @@ This phase implements payment recording functionality with automatic invoice sta
 
 **Payment Entity Responsibilities:**
 - Validates business rules (payment date not before invoice date, amount > 0)
-- Triggers invoice amountPaid recalculation after creation
-- Triggers invoice status transition to PAID if fully paid
-- Receives cascaded customerName updates from Invoice
+- Publishes domain events (PaymentRecordedEvent) to trigger invoice amountPaid recalculation
+- Invoice status transition to PAID handled by InvoiceService listening to events
+- Subscribes to InvoiceCustomerNameChangedEvent to update denormalized customerName field
 
-**Status Transition Logic:**
+**Status Transition Logic (Event-Driven):**
 ```
 When Payment is recorded:
-1. Recalculate Invoice.amountPaid (sum of all payment amounts)
-2. If Invoice.amountPaid >= Invoice.total:
-   - Set Invoice.status = PAID
-   - Cascade to Customer:
-     * Decrement sentInvoiceCount
-     * Increment paidInvoiceCount
-     * Subtract invoice.total from totalOutstanding
+1. Payment publishes PaymentRecordedEvent
+2. InvoiceService listens and recalculates Invoice.amountPaid (sum of all payment amounts)
+3. InvoiceService checks if Invoice.amountPaid >= Invoice.total
+4. If fully paid:
+   - InvoiceService sets Invoice.status = PAID
+   - InvoiceService publishes InvoiceStatusChangedEvent (SENT → PAID)
+5. CustomerService listens to InvoiceStatusChangedEvent and updates:
+   * Decrement sentInvoiceCount
+   * Increment paidInvoiceCount
+   * Subtract invoice.total from totalOutstanding
+6. All updates happen within same transaction
 ```
 
 **Key Patterns:**
-- **Automatic Calculation:** Invoice.amountPaid recalculated on payment create
-- **Status Transition:** Invoice automatically transitions to PAID when fully paid
+- **Event-Driven Calculation:** Payment publishes PaymentRecordedEvent, InvoiceService subscribes and recalculates amountPaid
+- **Event-Driven Status Transition:** Invoice publishes InvoiceStatusChangedEvent when transitioning to PAID
 - **Soft Deletes:** isDeleted flag, preserves audit trail
-- **No User Deletes:** Payments cannot be deleted by users (only cascade delete)
+- **No User Deletes:** Payments cannot be deleted by users (only cascade delete via InvoiceDeletedEvent)
 - **Audit Trail:** createdBy, lastModifiedBy via UserContext
-- **Denormalized customerName:** Copied from Invoice.customerName, updated via cascade
+- **Denormalized customerName:** Updated via subscription to InvoiceCustomerNameChangedEvent
 
 ### Transaction Flow
 
-**Record Payment Flow:**
+**Record Payment Flow (Event-Driven):**
 ```
 1. Controller receives RecordPaymentRequest
 2. Controller calls PaymentService.recordPayment()
@@ -82,28 +86,32 @@ When Payment is recorded:
    - Amount > 0
 5. Payment.create() sets all fields
 6. Service saves Payment
-7. Payment.afterCreate() triggers:
-   a. InvoiceService.recalculateAmountPaid(invoiceId)
-      - Query sum of all payments for invoice
-      - Update Invoice.amountPaid
-   b. InvoiceService.checkAndTransitionToPaid(invoiceId)
-      - If amountPaid >= total:
-        * Set status = PAID
-        * Call Invoice.afterTransitionToPaid()
-        * Invoice.afterTransitionToPaid() calls CustomerService.updateInvoiceCountsOnPaid()
-        * Customer: decrement sentInvoiceCount, increment paidInvoiceCount, subtract from totalOutstanding
-8. Transaction commits
+7. Payment.afterCreate() publishes PaymentRecordedEvent
+8. InvoiceService listens for PaymentRecordedEvent:
+   a. Recalculates Invoice.amountPaid (query sum of all payments)
+   b. Updates Invoice.amountPaid
+   c. Checks if Invoice.amountPaid >= Invoice.total
+   d. If fully paid:
+      - Sets Invoice.status = PAID
+      - Publishes InvoiceStatusChangedEvent (SENT → PAID)
+9. CustomerService listens for InvoiceStatusChangedEvent (SENT → PAID):
+   - Decrements sentInvoiceCount
+   - Increments paidInvoiceCount
+   - Subtracts invoice.total from totalOutstanding
+10. Transaction commits
 ```
 
-**Cascade Delete Flow (when Invoice is deleted):**
+**Cascade Delete Flow (Event-Driven):**
 ```
-1. Invoice.afterDelete() calls PaymentService.deleteAllForInvoice(invoiceId)
-2. PaymentService loads all payments for invoice
-3. For each payment:
+1. Invoice publishes InvoiceDeletedEvent
+2. PaymentService listens for InvoiceDeletedEvent
+3. PaymentService loads all payments for invoice
+4. For each payment:
    - Payment.beforeDelete(isSystemUpdate=true) - no validation needed
    - Payment.delete() - soft delete
    - Save payment
-4. Note: No afterDelete() calls needed since invoice is being deleted
+5. Note: Don't publish PaymentRecordedEvent since invoice is being deleted
+6. All updates happen within same transaction
 ```
 
 ---
@@ -292,10 +300,13 @@ public class Payment extends BaseEntity {
         this.customerName = invoice.getCustomerName();
     }
 
-    public void afterCreate(InvoiceService invoiceService) {
-        // Trigger invoice amountPaid recalculation and status check
-        invoiceService.recalculateAmountPaid(this.invoiceId);
-        invoiceService.checkAndTransitionToPaid(this.invoiceId);
+    public void afterCreate(ApplicationEventPublisher eventPublisher) {
+        // Publish domain event: Payment recorded
+        eventPublisher.publishEvent(new PaymentRecordedEvent(
+            this.id,
+            this.invoiceId,
+            this.amount
+        ));
     }
 
     // === DELETE OPERATION (System Only) ===
@@ -466,7 +477,7 @@ public class PaymentService {
     private InvoiceRepository invoiceRepository;
 
     @Autowired
-    private InvoiceService invoiceService;
+    private ApplicationEventPublisher eventPublisher;
 
     @Autowired
     private PaymentMapper paymentMapper;
@@ -482,16 +493,16 @@ public class PaymentService {
         payment.beforeCreate(request, invoice);
         payment.create(request, invoice);
         paymentRepository.save(payment);
-        payment.afterCreate(invoiceService);
+        payment.afterCreate(eventPublisher);  // Publishes PaymentRecordedEvent
 
         return paymentMapper.toResponse(payment);
     }
 
-    // === System Method for Cascade Delete ===
-
+    // Event listener for invoice deletion (cascade delete)
+    @EventListener
     @Transactional(propagation = Propagation.MANDATORY)
-    public void deleteAllForInvoice(UUID invoiceId) {
-        List<Payment> payments = paymentRepository.findAllByInvoiceIdAndIsDeletedFalseOrderByPaymentDateAsc(invoiceId);
+    public void onInvoiceDeleted(InvoiceDeletedEvent event) {
+        List<Payment> payments = paymentRepository.findAllByInvoiceIdAndIsDeletedFalseOrderByPaymentDateAsc(event.getInvoiceId());
 
         for (Payment payment : payments) {
             payment.beforeDelete(true); // isSystemUpdate=true
@@ -500,59 +511,58 @@ public class PaymentService {
             payment.afterDelete(); // No-op since invoice is being deleted
         }
     }
+
+    // Event listener for customer name changes from Invoice
+    @EventListener
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void onInvoiceCustomerNameChanged(InvoiceCustomerNameChangedEvent event) {
+        // Update denormalized customerName on all payments for this invoice
+        List<Payment> payments = paymentRepository.findAllByInvoiceIdAndIsDeletedFalseOrderByPaymentDateAsc(event.getInvoiceId());
+
+        for (Payment payment : payments) {
+            payment.setCustomerName(event.getNewCustomerName());
+            paymentRepository.save(payment);
+        }
+    }
 }
 
-// InvoiceService.java (new methods needed)
+// InvoiceService.java - Event listener for payment recorded
+@EventListener
 @Transactional(propagation = Propagation.MANDATORY)
-public void recalculateAmountPaid(UUID invoiceId) {
-    Invoice invoice = invoiceRepository.findByIdAndIsDeletedFalse(invoiceId)
+public void onPaymentRecorded(PaymentRecordedEvent event) {
+    Invoice invoice = invoiceRepository.findByIdAndIsDeletedFalse(event.getInvoiceId())
             .orElseThrow(() -> new NotFoundException("Invoice not found"));
 
-    // Query sum of all payments
-    BigDecimal newAmountPaid = paymentRepository.sumAmountsByInvoiceId(invoiceId);
+    // Recalculate amountPaid
+    BigDecimal newAmountPaid = paymentRepository.sumAmountsByInvoiceId(event.getInvoiceId());
     if (newAmountPaid == null) {
         newAmountPaid = BigDecimal.ZERO;
     }
 
     invoice.setAmountPaid(newAmountPaid);
     invoiceRepository.save(invoice);
-}
 
-@Transactional(propagation = Propagation.MANDATORY)
-public void checkAndTransitionToPaid(UUID invoiceId) {
-    Invoice invoice = invoiceRepository.findByIdAndIsDeletedFalse(invoiceId)
-            .orElseThrow(() -> new NotFoundException("Invoice not found"));
-
-    // If amountPaid >= total and status is SENT, transition to PAID
+    // Check if should transition to PAID
     if (invoice.getStatus() == InvoiceStatus.SENT &&
         invoice.getAmountPaid().compareTo(invoice.getTotal()) >= 0) {
 
+        InvoiceStatus oldStatus = invoice.getStatus();
         invoice.setStatus(InvoiceStatus.PAID);
         invoiceRepository.save(invoice);
 
-        // Cascade to customer
-        invoice.afterTransitionToPaid(customerService);
+        // Publish status change event
+        eventPublisher.publishEvent(new InvoiceStatusChangedEvent(
+            invoice.getId(),
+            invoice.getCustomerId(),
+            oldStatus,
+            InvoiceStatus.PAID,
+            invoice.getTotal()
+        ));
     }
 }
 
-// Invoice.java (new method needed)
-public void afterTransitionToPaid(CustomerService customerService) {
-    // Cascade to customer: update invoice counts and outstanding
-    customerService.updateInvoiceCountsOnPaid(this.customerId, this.total);
-}
-
-// CustomerService.java (new method needed)
-@Transactional(propagation = Propagation.MANDATORY)
-public void updateInvoiceCountsOnPaid(UUID customerId, BigDecimal invoiceTotal) {
-    Customer customer = customerRepository.findByIdAndIsDeletedFalse(customerId)
-            .orElseThrow(() -> new NotFoundException("Customer not found"));
-
-    customer.setSentInvoiceCount(customer.getSentInvoiceCount() - 1);
-    customer.setPaidInvoiceCount(customer.getPaidInvoiceCount() + 1);
-    customer.setTotalOutstanding(customer.getTotalOutstanding().subtract(invoiceTotal));
-
-    customerRepository.save(customer);
-}
+// CustomerService.java - Already has event listener for InvoiceStatusChangedEvent
+// See phase4-invoice.md for the SENT → PAID transition handling
 ```
 
 **Testing Approach:**
