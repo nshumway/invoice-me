@@ -1,8 +1,10 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { InvoiceListViewModel } from '../../viewmodels/invoices/InvoiceListViewModel';
 
 export const InvoiceListView: React.FC = () => {
+  const navigate = useNavigate();
   const { logout } = useAuth();
   const vm = InvoiceListViewModel();
 
@@ -30,7 +32,7 @@ export const InvoiceListView: React.FC = () => {
           <h1 className="text-3xl font-bold">Invoices</h1>
           <div className="flex gap-3">
             <button
-              onClick={() => (window.location.href = '/customers')}
+              onClick={() => navigate('/customers')}
               className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
             >
               Customers
