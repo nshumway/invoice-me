@@ -2,6 +2,8 @@ import React from 'react';
 import { useParams } from 'react-router-dom';
 import { InvoiceDetailViewModel } from '../../viewmodels/invoices/InvoiceDetailViewModel';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { RecordPaymentForm } from '../../components/payments/RecordPaymentForm';
+import { PaymentsTable } from '../../components/payments/PaymentsTable';
 
 export const InvoiceDetailView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -99,7 +101,7 @@ export const InvoiceDetailView: React.FC = () => {
 
           {/* Financial Summary */}
           <div className="bg-gray-50 rounded p-4 mb-6">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div>
                 <p className="text-sm text-gray-500">Total</p>
                 <p className="text-2xl font-bold">${vm.invoice.total.toFixed(2)}</p>
@@ -110,8 +112,47 @@ export const InvoiceDetailView: React.FC = () => {
                   ${vm.invoice.amountPaid.toFixed(2)}
                 </p>
               </div>
+              <div>
+                <p className="text-sm text-gray-500">Balance</p>
+                <p className="text-2xl font-bold text-blue-600">
+                  ${(vm.invoice.total - vm.invoice.amountPaid).toFixed(2)}
+                </p>
+              </div>
             </div>
           </div>
+
+          {/* Payments Section */}
+          {vm.canRecordPayment && (
+            <div className="mb-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-semibold">Payments</h2>
+                {!vm.showPaymentForm && (
+                  <button
+                    onClick={vm.handleRecordPayment}
+                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                  >
+                    Record Payment
+                  </button>
+                )}
+              </div>
+
+              {vm.showPaymentForm && (
+                <div className="mb-4">
+                  <RecordPaymentForm
+                    invoice={vm.invoice}
+                    onSuccess={vm.handlePaymentSuccess}
+                    onCancel={vm.handleCancelPayment}
+                  />
+                </div>
+              )}
+
+              {vm.paymentsLoading ? (
+                <p className="text-gray-600">Loading payments...</p>
+              ) : (
+                <PaymentsTable payments={vm.payments} onRowClick={vm.handlePaymentClick} />
+              )}
+            </div>
+          )}
 
           {/* Notes Section */}
           <div className="mb-6">

@@ -9,6 +9,7 @@ import { CustomerDetailView } from './views/customers/CustomerDetailView';
 import { InvoiceListView } from './views/invoices/InvoiceListView';
 import { InvoiceFormView } from './views/invoices/InvoiceFormView';
 import { InvoiceDetailView } from './views/invoices/InvoiceDetailView';
+import { PaymentDetailView } from './views/payments/PaymentDetailView';
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
           <Route path="/invoices" element={<InvoiceListView />} />
           <Route path="/invoices/new" element={<InvoiceFormView />} />
           <Route path="/invoices/:id" element={<InvoiceDetailView />} />
+          <Route path="/payments/:id" element={<PaymentDetailView />} />
         </Route>
       </Routes>
     </AuthProvider>
