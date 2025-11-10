@@ -1,6 +1,7 @@
 package com.invoiceme.application.customer;
 
 import com.invoiceme.domain.common.exceptions.NotFoundException;
+import com.invoiceme.domain.common.exceptions.OptimisticLockException;
 import com.invoiceme.domain.customer.Customer;
 import com.invoiceme.domain.invoice.InvoiceStatus;
 import com.invoiceme.domain.invoice.events.InvoiceCreatedEvent;
@@ -11,6 +12,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,10 +37,16 @@ public class InvoiceEventHandler {
     /**
      * Handle invoice created events.
      * Increments the draft invoice count for the customer.
+     * Uses optimistic locking with automatic retry on concurrent modifications.
      * @param event Invoice created event
      */
     @EventListener
     @Transactional(propagation = Propagation.MANDATORY)
+    @Retryable(
+        retryFor = {ObjectOptimisticLockingFailureException.class},
+        maxAttempts = 3,
+        backoff = @Backoff(delay = 50, multiplier = 2.0)
+    )
     public void onInvoiceCreated(InvoiceCreatedEvent event) {
         logger.info("Handling InvoiceCreatedEvent: invoiceId={}, customerId={}, status={}",
                    event.getInvoiceId(), event.getCustomerId(), event.getStatus());
@@ -51,6 +61,10 @@ public class InvoiceEventHandler {
 
             logger.debug("Incremented draft invoice count for customer: customerId={}, newCount={}",
                         event.getCustomerId(), customer.getDraftInvoiceCount());
+        } catch (ObjectOptimisticLockingFailureException e) {
+            logger.warn("Optimistic lock failure handling InvoiceCreatedEvent, will retry: invoiceId={}, customerId={}",
+                       event.getInvoiceId(), event.getCustomerId());
+            throw e; // Retry will handle this
         } catch (Exception e) {
             logger.error("Error handling InvoiceCreatedEvent: invoiceId={}, customerId={}",
                         event.getInvoiceId(), event.getCustomerId(), e);
@@ -61,10 +75,16 @@ public class InvoiceEventHandler {
     /**
      * Handle invoice status changed events.
      * Updates customer invoice counts and totalOutstanding based on status transitions.
+     * Uses optimistic locking with automatic retry on concurrent modifications.
      * @param event Invoice status changed event
      */
     @EventListener
     @Transactional(propagation = Propagation.MANDATORY)
+    @Retryable(
+        retryFor = {ObjectOptimisticLockingFailureException.class},
+        maxAttempts = 3,
+        backoff = @Backoff(delay = 50, multiplier = 2.0)
+    )
     public void onInvoiceStatusChanged(InvoiceStatusChangedEvent event) {
         logger.info("Handling InvoiceStatusChangedEvent: invoiceId={}, customerId={}, oldStatus={}, newStatus={}, total={}",
                    event.getInvoiceId(), event.getCustomerId(), event.getOldStatus(),
@@ -97,6 +117,10 @@ public class InvoiceEventHandler {
             }
 
             customerRepository.save(customer);
+        } catch (ObjectOptimisticLockingFailureException e) {
+            logger.warn("Optimistic lock failure handling InvoiceStatusChangedEvent, will retry: invoiceId={}, customerId={}",
+                       event.getInvoiceId(), event.getCustomerId());
+            throw e; // Retry will handle this
         } catch (Exception e) {
             logger.error("Error handling InvoiceStatusChangedEvent: invoiceId={}, customerId={}",
                         event.getInvoiceId(), event.getCustomerId(), e);
@@ -107,10 +131,16 @@ public class InvoiceEventHandler {
     /**
      * Handle invoice deleted events.
      * Decrements the appropriate invoice count based on the invoice's status.
+     * Uses optimistic locking with automatic retry on concurrent modifications.
      * @param event Invoice deleted event
      */
     @EventListener
     @Transactional(propagation = Propagation.MANDATORY)
+    @Retryable(
+        retryFor = {ObjectOptimisticLockingFailureException.class},
+        maxAttempts = 3,
+        backoff = @Backoff(delay = 50, multiplier = 2.0)
+    )
     public void onInvoiceDeleted(InvoiceDeletedEvent event) {
         logger.info("Handling InvoiceDeletedEvent: invoiceId={}, customerId={}, status={}",
                    event.getInvoiceId(), event.getCustomerId(), event.getInvoiceStatus());
@@ -132,6 +162,10 @@ public class InvoiceEventHandler {
             // Note: SENT invoices cannot be deleted, so no handling needed
 
             customerRepository.save(customer);
+        } catch (ObjectOptimisticLockingFailureException e) {
+            logger.warn("Optimistic lock failure handling InvoiceDeletedEvent, will retry: invoiceId={}, customerId={}",
+                       event.getInvoiceId(), event.getCustomerId());
+            throw e; // Retry will handle this
         } catch (Exception e) {
             logger.error("Error handling InvoiceDeletedEvent: invoiceId={}, customerId={}",
                         event.getInvoiceId(), event.getCustomerId(), e);
