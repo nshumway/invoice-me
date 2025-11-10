@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { invoiceApi } from '../../api/invoiceApi';
+import { lineItemApi } from '../../api/lineItemApi';
 import { paymentApi } from '../../api/paymentApi';
 import type { Invoice, UpdateInvoiceRequest } from '../../models/Invoice';
+import type { LineItem, CreateLineItemRequest, UpdateLineItemRequest } from '../../models/LineItem';
 import type { Payment } from '../../models/Payment';
 
 export const InvoiceDetailViewModel = (invoiceId: string) => {
@@ -21,8 +23,15 @@ export const InvoiceDetailViewModel = (invoiceId: string) => {
     isError,
     error,
   } = useQuery<Invoice>({
-    queryKey: ['invoices', invoiceId],
+    queryKey: ['invoices', 'detail', invoiceId],
     queryFn: () => invoiceApi.getById(invoiceId),
+    enabled: !!invoiceId,
+  });
+
+  // Query for line items
+  const { data: lineItems = [], refetch: refetchLineItems } = useQuery<LineItem[]>({
+    queryKey: ['lineItems', 'invoice', invoiceId],
+    queryFn: () => lineItemApi.listForInvoice(invoiceId),
     enabled: !!invoiceId,
   });
 
@@ -31,6 +40,32 @@ export const InvoiceDetailViewModel = (invoiceId: string) => {
     queryKey: ['payments', 'invoice', invoiceId],
     queryFn: () => paymentApi.listForInvoice(invoiceId),
     enabled: !!invoiceId && (invoice?.status === 'SENT' || invoice?.status === 'PAID'),
+  });
+
+  // Line item mutations
+  const createLineItemMutation = useMutation({
+    mutationFn: (request: CreateLineItemRequest) => lineItemApi.create(request),
+    onSuccess: () => {
+      refetchLineItems();
+      queryClient.invalidateQueries({ queryKey: ['invoices', 'detail', invoiceId] });
+    },
+  });
+
+  const updateLineItemMutation = useMutation({
+    mutationFn: (request: UpdateLineItemRequest) => lineItemApi.update(invoiceId, request),
+    onSuccess: () => {
+      refetchLineItems();
+      queryClient.invalidateQueries({ queryKey: ['invoices', 'detail', invoiceId] });
+    },
+  });
+
+  const deleteLineItemMutation = useMutation({
+    mutationFn: ({ lineItemId, version }: { lineItemId: string; version: number }) =>
+      lineItemApi.delete(invoiceId, lineItemId, version),
+    onSuccess: () => {
+      refetchLineItems();
+      queryClient.invalidateQueries({ queryKey: ['invoices', 'detail', invoiceId] });
+    },
   });
 
   // Update mutation
@@ -173,5 +208,10 @@ export const InvoiceDetailViewModel = (invoiceId: string) => {
     handlePaymentSuccess,
     handleCancelPayment,
     handlePaymentClick,
+    // Line items
+    lineItems,
+    createLineItemMutation,
+    updateLineItemMutation,
+    deleteLineItemMutation,
   };
 };
