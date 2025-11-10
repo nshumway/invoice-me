@@ -1,15 +1,28 @@
 package com.invoiceme.application.invoice.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotNull;
+
 import java.util.UUID;
 
-/**
- * Mock UpdateInvoiceRequest - will be fully implemented in Phase 3
- * This is a placeholder to satisfy Customer entity dependencies
- */
+@Schema(description = "Request to update an existing invoice")
 public class UpdateInvoiceRequest {
+
+    @NotNull(message = "Invoice ID is required")
+    @Schema(description = "ID of the invoice to update", example = "123e4567-e89b-12d3-a456-426614174000", required = true)
     private UUID id;
+
+    @NotNull(message = "Version is required for optimistic locking")
+    @Schema(description = "Current version of the invoice (for optimistic locking)", example = "0", required = true)
     private Long version;
-    private String customerName;
+
+    @Schema(description = "Invoice number", example = "INV-2025-11-09-001")
+    private String invoiceNumber;
+
+    @Schema(description = "Invoice notes or payment terms", example = "Payment terms: Net 30 days")
+    private String notes;
+
+    // Note: customerId and customerName are NOT included as they are immutable
 
     // === Getters and Setters ===
 
@@ -29,11 +42,19 @@ public class UpdateInvoiceRequest {
         this.version = version;
     }
 
-    public String getCustomerName() {
-        return customerName;
+    public String getInvoiceNumber() {
+        return invoiceNumber;
     }
 
-    public void setCustomerName(String customerName) {
-        this.customerName = customerName;
+    public void setInvoiceNumber(String invoiceNumber) {
+        this.invoiceNumber = invoiceNumber;
+    }
+
+    public String getNotes() {
+        return notes;
+    }
+
+    public void setNotes(String notes) {
+        this.notes = notes;
     }
 }

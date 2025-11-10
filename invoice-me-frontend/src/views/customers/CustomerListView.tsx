@@ -13,6 +13,12 @@ export const CustomerListView: React.FC = () => {
           <h1 className="text-3xl font-bold">Customers</h1>
           <div className="flex gap-3">
             <button
+              onClick={() => (window.location.href = '/invoices')}
+              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+            >
+              Invoices
+            </button>
+            <button
               onClick={vm.handleCreateNew}
               className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
             >

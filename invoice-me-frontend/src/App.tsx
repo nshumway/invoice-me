@@ -6,6 +6,9 @@ import { SignupView } from './views/auth/SignupView';
 import { CustomerListView } from './views/customers/CustomerListView';
 import { CustomerFormView } from './views/customers/CustomerFormView';
 import { CustomerDetailView } from './views/customers/CustomerDetailView';
+import { InvoiceListView } from './views/invoices/InvoiceListView';
+import { InvoiceFormView } from './views/invoices/InvoiceFormView';
+import { InvoiceDetailView } from './views/invoices/InvoiceDetailView';
 
 function App() {
   return (
@@ -20,6 +23,9 @@ function App() {
           <Route path="/customers/new" element={<CustomerFormView />} />
           <Route path="/customers/:id" element={<CustomerDetailView />} />
           <Route path="/customers/:id/edit" element={<CustomerFormView />} />
+          <Route path="/invoices" element={<InvoiceListView />} />
+          <Route path="/invoices/new" element={<InvoiceFormView />} />
+          <Route path="/invoices/:id" element={<InvoiceDetailView />} />
         </Route>
       </Routes>
     </AuthProvider>
