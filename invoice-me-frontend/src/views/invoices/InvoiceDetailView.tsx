@@ -2,6 +2,8 @@ import React from 'react';
 import { useParams } from 'react-router-dom';
 import { InvoiceDetailViewModel } from '../../viewmodels/invoices/InvoiceDetailViewModel';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { AddLineItemForm } from '../../components/line-items/AddLineItemForm';
+import { LineItemsTable } from '../../components/line-items/LineItemsTable';
 
 export const InvoiceDetailView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -110,6 +112,32 @@ export const InvoiceDetailView: React.FC = () => {
                   ${vm.invoice.amountPaid.toFixed(2)}
                 </p>
               </div>
+            </div>
+          </div>
+
+          {/* Line Items Section */}
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold mb-4">Line Items</h2>
+
+            <LineItemsTable
+              lineItems={vm.lineItems}
+              canEdit={vm.canEdit}
+              onUpdate={request => vm.updateLineItemMutation.mutate(request)}
+              onDelete={(lineItemId, version) =>
+                vm.deleteLineItemMutation.mutate({ lineItemId, version })
+              }
+              isSubmitting={
+                vm.updateLineItemMutation.isPending || vm.deleteLineItemMutation.isPending
+              }
+            />
+
+            <div className="mt-4">
+              <AddLineItemForm
+                invoiceId={id!}
+                onAdd={request => vm.createLineItemMutation.mutate(request)}
+                isSubmitting={vm.createLineItemMutation.isPending}
+                canEdit={vm.canEdit}
+              />
             </div>
           </div>
 
