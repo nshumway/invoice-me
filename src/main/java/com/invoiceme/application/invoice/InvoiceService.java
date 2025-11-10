@@ -6,8 +6,11 @@ import com.invoiceme.domain.common.exceptions.OptimisticLockException;
 import com.invoiceme.domain.customer.Customer;
 import com.invoiceme.domain.customer.events.CustomerNameChangedEvent;
 import com.invoiceme.domain.invoice.Invoice;
+import com.invoiceme.domain.invoice.events.InvoiceCustomerNameChangedEvent;
+import com.invoiceme.domain.lineitem.events.LineItemChangedEvent;
 import com.invoiceme.infrastructure.persistence.CustomerRepository;
 import com.invoiceme.infrastructure.persistence.InvoiceRepository;
+import com.invoiceme.infrastructure.persistence.LineItemRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -35,6 +39,9 @@ public class InvoiceService {
 
     @Autowired
     private CustomerRepository customerRepository;
+
+    @Autowired
+    private LineItemRepository lineItemRepository;
 
     @Autowired
     private ApplicationEventPublisher eventPublisher;
@@ -278,6 +285,7 @@ public class InvoiceService {
     /**
      * Event listener for customer name changes.
      * Updates denormalized customerName field on all invoices for the customer.
+     * Publishes InvoiceCustomerNameChangedEvent for each invoice to cascade to LineItems.
      * This is a system update that participates in the parent transaction.
      * @param event Customer name changed event
      */
@@ -296,12 +304,55 @@ public class InvoiceService {
             for (Invoice invoice : invoices) {
                 invoice.setCustomerName(event.getNewCompanyName());
                 invoiceRepository.save(invoice);
+
+                // Publish event for downstream entities (LineItems, Payments)
+                eventPublisher.publishEvent(new InvoiceCustomerNameChangedEvent(
+                    invoice.getId(),
+                    event.getNewCompanyName()
+                ));
             }
 
             logger.info("Successfully updated {} invoices with new customer name", invoices.size());
         } catch (Exception e) {
             logger.error("Error handling CustomerNameChangedEvent for customerId: {}",
                         event.getCustomerId(), e);
+            throw e;
+        }
+    }
+
+    /**
+     * Event listener for line item changes.
+     * Recalculates the invoice total based on the sum of all line items.
+     * This is a system update that participates in the parent transaction.
+     * @param event Line item changed event
+     */
+    @EventListener
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void onLineItemChanged(LineItemChangedEvent event) {
+        logger.info("Handling LineItemChangedEvent: invoiceId={}, lineItemId={}, changeType={}",
+                   event.getInvoiceId(), event.getLineItemId(), event.getChangeType());
+
+        try {
+            Invoice invoice = invoiceRepository.findByIdAndIsDeletedFalse(event.getInvoiceId())
+                    .orElseThrow(() -> new NotFoundException("Invoice not found"));
+
+            // Query sum of all line items
+            BigDecimal newTotal = lineItemRepository.sumLineTotalsByInvoiceId(event.getInvoiceId());
+            if (newTotal == null) {
+                newTotal = BigDecimal.ZERO;
+            }
+
+            logger.debug("Recalculating invoice total: invoiceId={}, oldTotal={}, newTotal={}",
+                        event.getInvoiceId(), invoice.getTotal(), newTotal);
+
+            invoice.setTotal(newTotal);
+            invoiceRepository.save(invoice);
+
+            logger.info("Successfully recalculated invoice total: invoiceId={}, newTotal={}",
+                       event.getInvoiceId(), newTotal);
+        } catch (Exception e) {
+            logger.error("Error handling LineItemChangedEvent for invoiceId: {}",
+                        event.getInvoiceId(), e);
             throw e;
         }
     }
