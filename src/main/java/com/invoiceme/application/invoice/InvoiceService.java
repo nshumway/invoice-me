@@ -6,11 +6,15 @@ import com.invoiceme.domain.common.exceptions.OptimisticLockException;
 import com.invoiceme.domain.customer.Customer;
 import com.invoiceme.domain.customer.events.CustomerNameChangedEvent;
 import com.invoiceme.domain.invoice.Invoice;
+import com.invoiceme.domain.invoice.InvoiceStatus;
 import com.invoiceme.domain.invoice.events.InvoiceCustomerNameChangedEvent;
+import com.invoiceme.domain.invoice.events.InvoiceStatusChangedEvent;
 import com.invoiceme.domain.lineitem.events.LineItemChangedEvent;
+import com.invoiceme.domain.payment.events.PaymentRecordedEvent;
 import com.invoiceme.infrastructure.persistence.CustomerRepository;
 import com.invoiceme.infrastructure.persistence.InvoiceRepository;
 import com.invoiceme.infrastructure.persistence.LineItemRepository;
+import com.invoiceme.infrastructure.persistence.PaymentRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,6 +46,9 @@ public class InvoiceService {
 
     @Autowired
     private LineItemRepository lineItemRepository;
+
+    @Autowired
+    private PaymentRepository paymentRepository;
 
     @Autowired
     private ApplicationEventPublisher eventPublisher;
@@ -281,6 +288,66 @@ public class InvoiceService {
     }
 
     // === EVENT LISTENERS ===
+
+    /**
+     * Event listener for payment recorded.
+     * Recalculates invoice amountPaid and checks if invoice should transition to PAID status.
+     * This participates in the parent transaction.
+     * @param event Payment recorded event
+     */
+    @EventListener
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void onPaymentRecorded(PaymentRecordedEvent event) {
+        logger.info("Handling PaymentRecordedEvent: paymentId={}, invoiceId={}, amount={}",
+                   event.getPaymentId(), event.getInvoiceId(), event.getAmount());
+
+        try {
+            Invoice invoice = invoiceRepository.findByIdAndIsDeletedFalse(event.getInvoiceId())
+                    .orElseThrow(() -> new NotFoundException("Invoice not found"));
+
+            // Recalculate amountPaid (sum of all payments)
+            BigDecimal newAmountPaid = paymentRepository.sumAmountsByInvoiceId(event.getInvoiceId());
+            if (newAmountPaid == null) {
+                newAmountPaid = BigDecimal.ZERO;
+            }
+
+            logger.debug("Recalculated amountPaid for invoice {}: {} (was {})",
+                        event.getInvoiceId(), newAmountPaid, invoice.getAmountPaid());
+
+            invoice.setAmountPaid(newAmountPaid);
+            invoiceRepository.save(invoice);
+
+            // Check if should transition to PAID status
+            if (invoice.getStatus() == InvoiceStatus.SENT &&
+                invoice.getAmountPaid().compareTo(invoice.getTotal()) >= 0) {
+
+                logger.info("Invoice {} is now fully paid. Transitioning from SENT to PAID status.",
+                           event.getInvoiceId());
+
+                InvoiceStatus oldStatus = invoice.getStatus();
+                invoice.setStatus(InvoiceStatus.PAID);
+                invoiceRepository.save(invoice);
+
+                // Publish status change event (CustomerService will handle updating statistics)
+                eventPublisher.publishEvent(new InvoiceStatusChangedEvent(
+                    invoice.getId(),
+                    invoice.getCustomerId(),
+                    oldStatus,
+                    InvoiceStatus.PAID,
+                    invoice.getTotal()
+                ));
+
+                logger.info("Successfully transitioned invoice {} from SENT to PAID", event.getInvoiceId());
+            }
+
+            logger.info("Successfully processed payment for invoice: id={}, newAmountPaid={}",
+                       event.getInvoiceId(), newAmountPaid);
+        } catch (Exception e) {
+            logger.error("Error handling PaymentRecordedEvent for invoiceId: {}",
+                        event.getInvoiceId(), e);
+            throw e;
+        }
+    }
 
     /**
      * Event listener for customer name changes.
