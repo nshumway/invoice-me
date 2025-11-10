@@ -9,15 +9,18 @@ public class CreateCustomerRequest {
 
     @NotBlank(message = "Company name is required")
     @Size(max = 255, message = "Company name must not exceed 255 characters")
-    @Pattern(regexp = "^[^<>]*$", message = "Company name cannot contain HTML tags")
+    @Pattern(regexp = "^(?!.*(<|>|javascript:|data:|vbscript:|on\\w+\\s*=)).*$",
+             message = "Company name contains invalid characters or script content")
     private String companyName;
 
     @Size(max = 255, message = "First name must not exceed 255 characters")
-    @Pattern(regexp = "^[^<>]*$", message = "First name cannot contain HTML tags")
+    @Pattern(regexp = "^(?!.*(<|>|javascript:|data:|vbscript:|on\\w+\\s*=)).*$",
+             message = "First name contains invalid characters or script content")
     private String contactFirstName;
 
     @Size(max = 255, message = "Last name must not exceed 255 characters")
-    @Pattern(regexp = "^[^<>]*$", message = "Last name cannot contain HTML tags")
+    @Pattern(regexp = "^(?!.*(<|>|javascript:|data:|vbscript:|on\\w+\\s*=)).*$",
+             message = "Last name contains invalid characters or script content")
     private String contactLastName;
 
     @NotBlank(message = "Email is required")
@@ -30,27 +33,33 @@ public class CreateCustomerRequest {
     private String phone;
 
     @Size(max = 255, message = "Address line 1 must not exceed 255 characters")
-    @Pattern(regexp = "^[^<>]*$", message = "Address line 1 cannot contain HTML tags")
+    @Pattern(regexp = "^(?!.*(<|>|javascript:|data:|vbscript:|on\\w+\\s*=)).*$",
+             message = "Address line 1 contains invalid characters or script content")
     private String addressLine1;
 
     @Size(max = 255, message = "Address line 2 must not exceed 255 characters")
-    @Pattern(regexp = "^[^<>]*$", message = "Address line 2 cannot contain HTML tags")
+    @Pattern(regexp = "^(?!.*(<|>|javascript:|data:|vbscript:|on\\w+\\s*=)).*$",
+             message = "Address line 2 contains invalid characters or script content")
     private String addressLine2;
 
     @Size(max = 100, message = "City must not exceed 100 characters")
-    @Pattern(regexp = "^[^<>]*$", message = "City cannot contain HTML tags")
+    @Pattern(regexp = "^(?!.*(<|>|javascript:|data:|vbscript:|on\\w+\\s*=)).*$",
+             message = "City contains invalid characters or script content")
     private String city;
 
     @Size(max = 100, message = "State must not exceed 100 characters")
-    @Pattern(regexp = "^[^<>]*$", message = "State cannot contain HTML tags")
+    @Pattern(regexp = "^(?!.*(<|>|javascript:|data:|vbscript:|on\\w+\\s*=)).*$",
+             message = "State contains invalid characters or script content")
     private String state;
 
     @Size(max = 20, message = "Zip code must not exceed 20 characters")
-    @Pattern(regexp = "^[^<>]*$", message = "Zip code cannot contain HTML tags")
+    @Pattern(regexp = "^(?!.*(<|>|javascript:|data:|vbscript:|on\\w+\\s*=)).*$",
+             message = "Zip code contains invalid characters or script content")
     private String zipCode;
 
     @Size(max = 100, message = "Country must not exceed 100 characters")
-    @Pattern(regexp = "^[^<>]*$", message = "Country cannot contain HTML tags")
+    @Pattern(regexp = "^(?!.*(<|>|javascript:|data:|vbscript:|on\\w+\\s*=)).*$",
+             message = "Country contains invalid characters or script content")
     private String country;
 
     // === Getters and Setters ===

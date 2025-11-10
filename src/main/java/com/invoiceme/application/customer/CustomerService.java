@@ -1,5 +1,6 @@
 package com.invoiceme.application.customer;
 
+import com.invoiceme.application.common.UserContext;
 import com.invoiceme.application.customer.dto.*;
 import com.invoiceme.domain.common.exceptions.NotFoundException;
 import com.invoiceme.domain.common.exceptions.OptimisticLockException;
@@ -91,10 +92,12 @@ public class CustomerService {
                     request.getId(), request.getCompanyName(), request.getVersion());
 
         try {
-            // Load entity
-            Customer customer = customerRepository.findByIdAndIsDeletedFalse(request.getId())
+            // Load entity with authorization check
+            UUID currentUserId = UserContext.getCurrentUser();
+            Customer customer = customerRepository.findByIdAndCreatedByAndIsDeletedFalse(request.getId(), currentUserId)
                     .orElseThrow(() -> {
-                        logger.warn("Customer not found for update: id={}", request.getId());
+                        logger.warn("Customer not found or access denied for update: id={}, userId={}",
+                                   request.getId(), currentUserId);
                         return new NotFoundException("Customer not found");
                     });
 
@@ -166,9 +169,11 @@ public class CustomerService {
         logger.debug("Delete customer request: id={}, version={}", request.getId(), request.getVersion());
 
         try {
-            Customer customer = customerRepository.findByIdAndIsDeletedFalse(request.getId())
+            UUID currentUserId = UserContext.getCurrentUser();
+            Customer customer = customerRepository.findByIdAndCreatedByAndIsDeletedFalse(request.getId(), currentUserId)
                     .orElseThrow(() -> {
-                        logger.warn("Customer not found for deletion: id={}", request.getId());
+                        logger.warn("Customer not found or access denied for deletion: id={}, userId={}",
+                                   request.getId(), currentUserId);
                         return new NotFoundException("Customer not found");
                     });
 
@@ -218,9 +223,10 @@ public class CustomerService {
         logger.debug("Retrieving customer by id: {}", id);
 
         try {
-            Customer customer = customerRepository.findByIdAndIsDeletedFalse(id)
+            UUID currentUserId = UserContext.getCurrentUser();
+            Customer customer = customerRepository.findByIdAndCreatedByAndIsDeletedFalse(id, currentUserId)
                     .orElseThrow(() -> {
-                        logger.warn("Customer not found: id={}", id);
+                        logger.warn("Customer not found or access denied: id={}, userId={}", id, currentUserId);
                         return new NotFoundException("Customer not found");
                     });
 
@@ -242,12 +248,14 @@ public class CustomerService {
         logger.debug("Listing all customers");
 
         try {
-            List<CustomerListItemResponse> customers = customerRepository.findAllByIsDeletedFalseOrderByCompanyName()
+            UUID currentUserId = UserContext.getCurrentUser();
+            List<CustomerListItemResponse> customers = customerRepository
+                    .findAllByCreatedByAndIsDeletedFalseOrderByCompanyName(currentUserId)
                     .stream()
                     .map(customerMapper::toListItem)
                     .collect(Collectors.toList());
 
-            logger.info("Successfully retrieved {} customer(s)", customers.size());
+            logger.info("Successfully retrieved {} customer(s) for user {}", customers.size(), currentUserId);
             return customers;
         } catch (Exception e) {
             logger.error("Unexpected error listing all customers", e);

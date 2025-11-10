@@ -22,6 +22,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -107,7 +108,7 @@ class CustomerServiceTest {
         existingCustomer.setEmail("old@example.com");
         existingCustomer.setVersion(0L);
 
-        when(customerRepository.findByIdAndIsDeletedFalse(customerId))
+        when(customerRepository.findByIdAndCreatedByAndIsDeletedFalse(eq(customerId), any(UUID.class)))
                 .thenReturn(Optional.of(existingCustomer));
         when(customerRepository.existsByEmailAndIsDeletedFalse("updated@example.com"))
                 .thenReturn(false);
@@ -124,7 +125,7 @@ class CustomerServiceTest {
         assertNotNull(result);
         assertEquals("Updated Corp", result.getCompanyName());
 
-        verify(customerRepository).findByIdAndIsDeletedFalse(customerId);
+        verify(customerRepository).findByIdAndCreatedByAndIsDeletedFalse(eq(customerId), any(UUID.class));
         verify(customerRepository).saveAndFlush(any(Customer.class));
     }
 
@@ -138,13 +139,13 @@ class CustomerServiceTest {
         request.setCompanyName("Test Corp");
         request.setEmail("test@example.com");
 
-        when(customerRepository.findByIdAndIsDeletedFalse(customerId))
+        when(customerRepository.findByIdAndCreatedByAndIsDeletedFalse(eq(customerId), any(UUID.class)))
                 .thenReturn(Optional.empty());
 
         assertThrows(NotFoundException.class, () ->
             customerService.updateCustomer(request));
 
-        verify(customerRepository).findByIdAndIsDeletedFalse(customerId);
+        verify(customerRepository).findByIdAndCreatedByAndIsDeletedFalse(eq(customerId), any(UUID.class));
         verify(customerRepository, never()).save(any());
     }
 
@@ -162,7 +163,7 @@ class CustomerServiceTest {
         existingCustomer.setId(customerId);
         existingCustomer.setVersion(1L);  // But database has version 1
 
-        when(customerRepository.findByIdAndIsDeletedFalse(customerId))
+        when(customerRepository.findByIdAndCreatedByAndIsDeletedFalse(eq(customerId), any(UUID.class)))
                 .thenReturn(Optional.of(existingCustomer));
 
         OptimisticLockException exception = assertThrows(OptimisticLockException.class, () ->
@@ -170,7 +171,7 @@ class CustomerServiceTest {
 
         assertTrue(exception.getMessage().contains("modified by another user"));
 
-        verify(customerRepository).findByIdAndIsDeletedFalse(customerId);
+        verify(customerRepository).findByIdAndCreatedByAndIsDeletedFalse(eq(customerId), any(UUID.class));
         verify(customerRepository, never()).save(any());
     }
 
@@ -188,12 +189,12 @@ class CustomerServiceTest {
         existingCustomer.setId(customerId);
         existingCustomer.setVersion(0L);
 
-        when(customerRepository.findByIdAndIsDeletedFalse(customerId))
+        when(customerRepository.findByIdAndCreatedByAndIsDeletedFalse(eq(customerId), any(UUID.class)))
                 .thenReturn(Optional.of(existingCustomer));
 
         customerService.deleteCustomer(request);
 
-        verify(customerRepository).findByIdAndIsDeletedFalse(customerId);
+        verify(customerRepository).findByIdAndCreatedByAndIsDeletedFalse(eq(customerId), any(UUID.class));
         verify(customerRepository).save(existingCustomer);
         assertTrue(existingCustomer.getIsDeleted());
     }
@@ -206,13 +207,13 @@ class CustomerServiceTest {
         request.setId(customerId);
         request.setVersion(0L);
 
-        when(customerRepository.findByIdAndIsDeletedFalse(customerId))
+        when(customerRepository.findByIdAndCreatedByAndIsDeletedFalse(eq(customerId), any(UUID.class)))
                 .thenReturn(Optional.empty());
 
         assertThrows(NotFoundException.class, () ->
             customerService.deleteCustomer(request));
 
-        verify(customerRepository).findByIdAndIsDeletedFalse(customerId);
+        verify(customerRepository).findByIdAndCreatedByAndIsDeletedFalse(eq(customerId), any(UUID.class));
         verify(customerRepository, never()).save(any());
     }
 
@@ -228,7 +229,7 @@ class CustomerServiceTest {
         existingCustomer.setId(customerId);
         existingCustomer.setVersion(1L);  // Version mismatch
 
-        when(customerRepository.findByIdAndIsDeletedFalse(customerId))
+        when(customerRepository.findByIdAndCreatedByAndIsDeletedFalse(eq(customerId), any(UUID.class)))
                 .thenReturn(Optional.of(existingCustomer));
 
         OptimisticLockException exception = assertThrows(OptimisticLockException.class, () ->
@@ -236,7 +237,7 @@ class CustomerServiceTest {
 
         assertTrue(exception.getMessage().contains("modified by another user"));
 
-        verify(customerRepository).findByIdAndIsDeletedFalse(customerId);
+        verify(customerRepository).findByIdAndCreatedByAndIsDeletedFalse(eq(customerId), any(UUID.class));
         verify(customerRepository, never()).save(any());
     }
 
@@ -251,7 +252,7 @@ class CustomerServiceTest {
         customer.setCompanyName("Test Corp");
         customer.setEmail("test@example.com");
 
-        when(customerRepository.findByIdAndIsDeletedFalse(customerId))
+        when(customerRepository.findByIdAndCreatedByAndIsDeletedFalse(eq(customerId), any(UUID.class)))
                 .thenReturn(Optional.of(customer));
 
         CustomerResponse result = customerService.getCustomerById(customerId);
@@ -259,20 +260,20 @@ class CustomerServiceTest {
         assertNotNull(result);
         assertEquals("Test Corp", result.getCompanyName());
 
-        verify(customerRepository).findByIdAndIsDeletedFalse(customerId);
+        verify(customerRepository).findByIdAndCreatedByAndIsDeletedFalse(eq(customerId), any(UUID.class));
     }
 
     @Test
     void testGetCustomerByIdThrowsNotFoundExceptionWhenCustomerDoesNotExist() {
         UUID customerId = UUID.randomUUID();
 
-        when(customerRepository.findByIdAndIsDeletedFalse(customerId))
+        when(customerRepository.findByIdAndCreatedByAndIsDeletedFalse(eq(customerId), any(UUID.class)))
                 .thenReturn(Optional.empty());
 
         assertThrows(NotFoundException.class, () ->
             customerService.getCustomerById(customerId));
 
-        verify(customerRepository).findByIdAndIsDeletedFalse(customerId);
+        verify(customerRepository).findByIdAndCreatedByAndIsDeletedFalse(eq(customerId), any(UUID.class));
     }
 
     // === LIST ALL TESTS ===
@@ -289,7 +290,7 @@ class CustomerServiceTest {
         customer2.setCompanyName("Beta Inc");
         customer2.setTotalOutstanding(new BigDecimal("500.00"));
 
-        when(customerRepository.findAllByIsDeletedFalseOrderByCompanyName())
+        when(customerRepository.findAllByCreatedByAndIsDeletedFalseOrderByCompanyName(any(UUID.class)))
                 .thenReturn(Arrays.asList(customer1, customer2));
 
         List<CustomerListItemResponse> results = customerService.listAllCustomers();
@@ -298,12 +299,12 @@ class CustomerServiceTest {
         assertEquals("Acme Corp", results.get(0).getCompanyName());
         assertEquals("Beta Inc", results.get(1).getCompanyName());
 
-        verify(customerRepository).findAllByIsDeletedFalseOrderByCompanyName();
+        verify(customerRepository).findAllByCreatedByAndIsDeletedFalseOrderByCompanyName(any(UUID.class));
     }
 
     @Test
     void testListAllCustomersReturnsEmptyListWhenNoCustomers() {
-        when(customerRepository.findAllByIsDeletedFalseOrderByCompanyName())
+        when(customerRepository.findAllByCreatedByAndIsDeletedFalseOrderByCompanyName(any(UUID.class)))
                 .thenReturn(Arrays.asList());
 
         List<CustomerListItemResponse> results = customerService.listAllCustomers();
@@ -311,6 +312,6 @@ class CustomerServiceTest {
         assertNotNull(results);
         assertTrue(results.isEmpty());
 
-        verify(customerRepository).findAllByIsDeletedFalseOrderByCompanyName();
+        verify(customerRepository).findAllByCreatedByAndIsDeletedFalseOrderByCompanyName(any(UUID.class));
     }
 }

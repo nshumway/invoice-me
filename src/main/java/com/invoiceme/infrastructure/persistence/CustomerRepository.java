@@ -25,6 +25,14 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID> {
 
     boolean existsByEmailAndIsDeletedFalse(String email);
 
+    // === Authorization-aware Queries ===
+
+    Optional<Customer> findByIdAndCreatedByAndIsDeletedFalse(UUID id, UUID createdBy);
+
+    List<Customer> findAllByCreatedByAndIsDeletedFalseOrderByCompanyName(UUID createdBy);
+
+    boolean existsByEmailAndCreatedByAndIsDeletedFalse(String email, UUID createdBy);
+
     // === Custom Queries for Related Entities ===
 
     /**
