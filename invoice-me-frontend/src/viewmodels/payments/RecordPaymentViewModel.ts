@@ -50,14 +50,9 @@ export const useRecordPaymentViewModel = (invoice: Invoice, onSuccess: () => voi
 
     if (!paymentDate) {
       newErrors.paymentDate = 'Payment date is required';
-    } else if (invoice.invoiceDate) {
-      // Check not before invoice date
-      const payDate = new Date(paymentDate);
-      const invDate = new Date(invoice.invoiceDate);
-      if (payDate < invDate) {
-        newErrors.paymentDate = 'Payment date cannot be before invoice date';
-      }
     }
+    // Note: Payment date validation removed in Release 1.2
+    // Payments can now be recorded with any date (before/after invoice date)
 
     if (!amount || parseFloat(amount) <= 0) {
       newErrors.amount = 'Amount must be greater than 0';
