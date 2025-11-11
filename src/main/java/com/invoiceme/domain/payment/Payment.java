@@ -70,13 +70,6 @@ public class Payment extends BaseEntity {
             throw new ValidationException("Payments can only be recorded for SENT or PAID invoices");
         }
 
-        // Validate payment date not before invoice date
-        if (paymentDate != null && invoice.getInvoiceDate() != null) {
-            if (paymentDate.isBefore(invoice.getInvoiceDate())) {
-                throw new ValidationException("Payment date cannot be before invoice date");
-            }
-        }
-
         // Validate amount > 0
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ValidationException("Payment amount must be greater than 0");

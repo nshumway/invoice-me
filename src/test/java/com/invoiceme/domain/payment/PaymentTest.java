@@ -158,15 +158,15 @@ class PaymentTest {
     }
 
     @Test
-    void testBeforeCreateRejectsPaymentDateBeforeInvoiceDate() {
-        // Given
+    void testBeforeCreateAllowsPaymentDateBeforeInvoiceDate() {
+        // Given: Invoice with invoice date
         Invoice invoice = createSentInvoice();
         Instant invoiceDate = invoice.getInvoiceDate();
         Instant paymentDate = invoiceDate.minus(1, ChronoUnit.DAYS);
 
-        // When/Then
+        // When/Then: Payment date before invoice date is now allowed (Release 1.2)
         Payment payment = new Payment();
-        assertThrows(ValidationException.class, () -> {
+        assertDoesNotThrow(() -> {
             payment.beforeCreate(invoice.getId(), paymentDate, new BigDecimal("100.00"), PaymentMethod.CASH, invoice);
         });
     }

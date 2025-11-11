@@ -11,6 +11,8 @@ import com.invoiceme.domain.invoice.events.InvoiceStatusChangedEvent;
 import com.invoiceme.domain.payment.events.PaymentRecordedEvent;
 import com.invoiceme.infrastructure.persistence.CustomerRepository;
 import com.invoiceme.infrastructure.persistence.InvoiceRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +23,8 @@ import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
 
 /**
  * Event handler for invoice events that affect customer statistics.
@@ -39,6 +43,9 @@ public class InvoiceEventHandler {
 
     @Autowired
     private InvoiceRepository invoiceRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     /**
      * Handle invoice created events.
@@ -62,10 +69,11 @@ public class InvoiceEventHandler {
                     .orElseThrow(() -> new NotFoundException("Customer not found: " + event.getCustomerId()));
 
             // New invoices are always created in DRAFT status
-            customer.setDraftInvoiceCount(customer.getDraftInvoiceCount() + 1);
+            // Recalculate invoice counts from database
+            recalculateCustomerInvoiceCounts(customer);
             customerRepository.save(customer);
 
-            logger.debug("Incremented draft invoice count for customer: customerId={}, newCount={}",
+            logger.debug("Recalculated draft invoice count for customer: customerId={}, newCount={}",
                         event.getCustomerId(), customer.getDraftInvoiceCount());
         } catch (ObjectOptimisticLockingFailureException e) {
             logger.warn("Optimistic lock failure handling InvoiceCreatedEvent, will retry: invoiceId={}, customerId={}",
@@ -102,9 +110,11 @@ public class InvoiceEventHandler {
 
             // Handle DRAFT → SENT transition
             if (event.getOldStatus() == InvoiceStatus.DRAFT && event.getNewStatus() == InvoiceStatus.SENT) {
-                customer.setDraftInvoiceCount(customer.getDraftInvoiceCount() - 1);
-                customer.setSentInvoiceCount(customer.getSentInvoiceCount() + 1);
-                customer.setTotalOutstanding(customer.getTotalOutstanding().add(event.getInvoiceTotal()));
+                // Recalculate invoice counts from database
+                recalculateCustomerInvoiceCounts(customer);
+
+                // Recalculate totalOutstanding from database
+                recalculateTotalOutstanding(customer);
 
                 logger.debug("Updated customer for DRAFT→SENT: draftCount={}, sentCount={}, totalOutstanding={}",
                             customer.getDraftInvoiceCount(), customer.getSentInvoiceCount(),
@@ -112,17 +122,12 @@ public class InvoiceEventHandler {
             }
 
             // Handle SENT → PAID transition
-            // Note: totalOutstanding is already adjusted by payment events, so we only update counts
             if (event.getOldStatus() == InvoiceStatus.SENT && event.getNewStatus() == InvoiceStatus.PAID) {
-                customer.setSentInvoiceCount(customer.getSentInvoiceCount() - 1);
-                customer.setPaidInvoiceCount(customer.getPaidInvoiceCount() + 1);
+                // Recalculate invoice counts from database
+                recalculateCustomerInvoiceCounts(customer);
 
-                // Log warning if outstanding isn't zero (should have been cleared by payment events)
-                if (customer.getTotalOutstanding().compareTo(java.math.BigDecimal.ZERO) != 0) {
-                    logger.warn("Customer totalOutstanding is not zero when invoice transitioned to PAID. " +
-                               "This may indicate payment events didn't process correctly. customerId={}, outstanding={}",
-                               customer.getId(), customer.getTotalOutstanding());
-                }
+                // Recalculate totalOutstanding from database
+                recalculateTotalOutstanding(customer);
 
                 logger.debug("Updated customer for SENT→PAID: sentCount={}, paidCount={}, totalOutstanding={}",
                             customer.getSentInvoiceCount(), customer.getPaidInvoiceCount(),
@@ -162,17 +167,12 @@ public class InvoiceEventHandler {
             Customer customer = customerRepository.findByIdAndIsDeletedFalse(event.getCustomerId())
                     .orElseThrow(() -> new NotFoundException("Customer not found: " + event.getCustomerId()));
 
-            // Update customer counts based on invoice status
-            if (event.getInvoiceStatus() == InvoiceStatus.DRAFT) {
-                customer.setDraftInvoiceCount(customer.getDraftInvoiceCount() - 1);
-                logger.debug("Decremented draft invoice count: customerId={}, newCount={}",
-                            event.getCustomerId(), customer.getDraftInvoiceCount());
-            } else if (event.getInvoiceStatus() == InvoiceStatus.PAID) {
-                customer.setPaidInvoiceCount(customer.getPaidInvoiceCount() - 1);
-                logger.debug("Decremented paid invoice count: customerId={}, newCount={}",
-                            event.getCustomerId(), customer.getPaidInvoiceCount());
-            }
+            // Recalculate invoice counts from database
+            recalculateCustomerInvoiceCounts(customer);
             // Note: SENT invoices cannot be deleted, so no handling needed
+
+            logger.debug("Recalculated invoice counts after deletion: customerId={}, draftCount={}, paidCount={}",
+                        event.getCustomerId(), customer.getDraftInvoiceCount(), customer.getPaidInvoiceCount());
 
             customerRepository.save(customer);
         } catch (ObjectOptimisticLockingFailureException e) {
@@ -188,12 +188,14 @@ public class InvoiceEventHandler {
 
     /**
      * Handle payment recorded events.
-     * Reduces the customer's totalOutstanding by the payment amount.
+     * Recalculates customer totalOutstanding from database.
      * This ensures partial payments immediately update the customer's outstanding balance.
      * Uses optimistic locking with automatic retry on concurrent modifications.
+     * Order(2) ensures this runs after InvoiceService updates invoice.amountPaid.
      * @param event Payment recorded event
      */
     @EventListener
+    @org.springframework.core.annotation.Order(2)
     @Transactional(propagation = Propagation.MANDATORY)
     @Retryable(
         retryFor = {ObjectOptimisticLockingFailureException.class},
@@ -205,6 +207,9 @@ public class InvoiceEventHandler {
                    event.getPaymentId(), event.getInvoiceId(), event.getAmount());
 
         try {
+            // Flush pending changes (invoice.amountPaid update) before recalculating
+            entityManager.flush();
+
             // Load the invoice to get the customer ID
             Invoice invoice = invoiceRepository.findByIdAndIsDeletedFalse(event.getInvoiceId())
                     .orElseThrow(() -> new NotFoundException("Invoice not found: " + event.getInvoiceId()));
@@ -212,12 +217,12 @@ public class InvoiceEventHandler {
             Customer customer = customerRepository.findByIdAndIsDeletedFalse(invoice.getCustomerId())
                     .orElseThrow(() -> new NotFoundException("Customer not found: " + invoice.getCustomerId()));
 
-            // Reduce the customer's outstanding balance by the payment amount
-            customer.setTotalOutstanding(customer.getTotalOutstanding().subtract(event.getAmount()));
+            // Recalculate totalOutstanding from database
+            recalculateTotalOutstanding(customer);
 
             customerRepository.save(customer);
 
-            logger.debug("Reduced customer totalOutstanding: customerId={}, paymentAmount={}, newOutstanding={}",
+            logger.debug("Recalculated customer totalOutstanding after payment: customerId={}, paymentAmount={}, newOutstanding={}",
                         customer.getId(), event.getAmount(), customer.getTotalOutstanding());
         } catch (ObjectOptimisticLockingFailureException e) {
             logger.warn("Optimistic lock failure handling PaymentRecordedEvent, will retry: paymentId={}, invoiceId={}",
@@ -228,5 +233,32 @@ public class InvoiceEventHandler {
                         event.getPaymentId(), event.getInvoiceId(), e);
             throw e;
         }
+    }
+
+    /**
+     * Recalculates customer invoice counts from database.
+     * @param customer The customer to update
+     */
+    private void recalculateCustomerInvoiceCounts(Customer customer) {
+        Integer draftCount = invoiceRepository.countByCustomerIdAndStatusAndIsDeletedFalse(
+            customer.getId(), InvoiceStatus.DRAFT);
+        Integer sentCount = invoiceRepository.countByCustomerIdAndStatusAndIsDeletedFalse(
+            customer.getId(), InvoiceStatus.SENT);
+        Integer paidCount = invoiceRepository.countByCustomerIdAndStatusAndIsDeletedFalse(
+            customer.getId(), InvoiceStatus.PAID);
+
+        customer.setDraftInvoiceCount(draftCount != null ? draftCount : 0);
+        customer.setSentInvoiceCount(sentCount != null ? sentCount : 0);
+        customer.setPaidInvoiceCount(paidCount != null ? paidCount : 0);
+    }
+
+    /**
+     * Recalculates customer totalOutstanding from database.
+     * Sums the balance (total - amountPaid) of all SENT and PAID invoices.
+     * @param customer The customer to update
+     */
+    private void recalculateTotalOutstanding(Customer customer) {
+        BigDecimal totalOutstanding = invoiceRepository.calculateTotalOutstanding(customer.getId());
+        customer.setTotalOutstanding(totalOutstanding != null ? totalOutstanding : BigDecimal.ZERO);
     }
 }

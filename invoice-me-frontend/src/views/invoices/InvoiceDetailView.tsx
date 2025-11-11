@@ -1,5 +1,5 @@
 import React from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { InvoiceDetailViewModel } from '../../viewmodels/invoices/InvoiceDetailViewModel';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { RecordPaymentForm } from '../../components/payments/RecordPaymentForm';
@@ -98,7 +98,12 @@ export const InvoiceDetailView: React.FC = () => {
           {/* Customer Info */}
           <div>
             <h2 className="text-xl font-semibold mb-2 text-gray-100">Customer</h2>
-            <p className="text-xl text-gray-200">{vm.invoice.customerName}</p>
+            <Link
+              to={`/customers/${vm.invoice.customerId}`}
+              className="text-xl text-primary-400 hover:text-primary-300 hover:underline transition-colors"
+            >
+              {vm.invoice.customerName}
+            </Link>
           </div>
 
           {/* Invoice Details */}

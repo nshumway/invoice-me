@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -62,4 +63,28 @@ public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
      */
     @Query("SELECT i.invoiceNumber FROM Invoice i WHERE i.invoiceNumber LIKE CONCAT(:prefix, '%') AND i.isDeleted = false")
     List<String> findInvoiceNumbersByPrefix(@Param("prefix") String prefix);
+
+    /**
+     * Count invoices for a customer by status.
+     * @param customerId The customer ID
+     * @param status The invoice status
+     * @return Count of invoices
+     */
+    Integer countByCustomerIdAndStatusAndIsDeletedFalse(UUID customerId, InvoiceStatus status);
+
+    /**
+     * Calculate total outstanding balance for a customer.
+     * Sums the balance (total - amountPaid) of all SENT and PAID invoices.
+     * @param customerId The customer ID
+     * @return Total outstanding balance
+     */
+    @Query("""
+        SELECT COALESCE(SUM(i.total - i.amountPaid), 0)
+        FROM Invoice i
+        WHERE i.customerId = :customerId
+        AND i.status IN ('SENT', 'PAID')
+        AND i.isDeleted = false
+        AND (i.total - i.amountPaid) > 0
+        """)
+    BigDecimal calculateTotalOutstanding(@Param("customerId") UUID customerId);
 }
