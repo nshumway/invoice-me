@@ -84,6 +84,8 @@ export const InvoiceDetailViewModel = (invoiceId: string) => {
     onSuccess: updatedInvoice => {
       queryClient.setQueryData(['invoices', 'detail', invoiceId], updatedInvoice);
       queryClient.invalidateQueries({ queryKey: ['invoices', 'list'] });
+      // Invalidate customer queries since outstanding amount changes when invoice is sent
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
     },
   });
 
@@ -91,6 +93,8 @@ export const InvoiceDetailViewModel = (invoiceId: string) => {
   const deleteMutation = useMutation({
     mutationFn: (version: number) => invoiceApi.delete(invoiceId, version),
     onSuccess: () => {
+      // Invalidate customer queries since draft invoice count changes
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
       navigate('/invoices');
     },
   });
@@ -105,7 +109,10 @@ export const InvoiceDetailViewModel = (invoiceId: string) => {
   const canEdit = invoice?.status === 'DRAFT';
   const canDelete = invoice?.status === 'DRAFT';
   const canMarkAsSent = invoice?.status === 'DRAFT';
-  const canRecordPayment = invoice?.status === 'SENT' || invoice?.status === 'PAID';
+  const canRecordPayment =
+    (invoice?.status === 'SENT' || invoice?.status === 'PAID') &&
+    invoice &&
+    invoice.amountPaid < invoice.total;
 
   const isSubmitting =
     updateMutation.isPending || markAsSentMutation.isPending || deleteMutation.isPending;
@@ -131,8 +138,9 @@ export const InvoiceDetailViewModel = (invoiceId: string) => {
     if (!invoice) return;
 
     const request: UpdateInvoiceRequest = {
-      notes: notes.trim() || undefined,
+      id: invoice.id,
       version: invoice.version,
+      notes: notes.trim() || undefined,
     };
 
     updateMutation.mutate(request);

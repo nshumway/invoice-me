@@ -253,6 +253,53 @@ public class InvoiceService {
         }
     }
 
+    /**
+     * Lists all invoices filtered by status.
+     * @param status Invoice status to filter by
+     * @return List of invoice summaries matching the status
+     */
+    @Transactional(readOnly = true)
+    public List<InvoiceListItemResponse> listInvoicesByStatus(InvoiceStatus status) {
+        logger.info("Listing invoices by status: {}", status);
+
+        try {
+            List<InvoiceListItemResponse> invoices = invoiceRepository.findAllByStatusAndIsDeletedFalseOrderByInvoiceDateDesc(status)
+                    .stream()
+                    .map(invoiceMapper::toListItem)
+                    .collect(Collectors.toList());
+
+            logger.debug("Found {} invoices with status {}", invoices.size(), status);
+            return invoices;
+        } catch (Exception e) {
+            logger.error("Error listing invoices by status: {}", status, e);
+            throw e;
+        }
+    }
+
+    /**
+     * Lists all invoices for a specific customer filtered by status.
+     * @param customerId Customer ID to filter by
+     * @param status Invoice status to filter by
+     * @return List of invoice summaries matching both filters
+     */
+    @Transactional(readOnly = true)
+    public List<InvoiceListItemResponse> listInvoicesByCustomerAndStatus(UUID customerId, InvoiceStatus status) {
+        logger.info("Listing invoices for customer: {} with status: {}", customerId, status);
+
+        try {
+            List<InvoiceListItemResponse> invoices = invoiceRepository.findAllByCustomerIdAndStatusAndIsDeletedFalse(customerId, status)
+                    .stream()
+                    .map(invoiceMapper::toListItem)
+                    .collect(Collectors.toList());
+
+            logger.debug("Found {} invoices for customer {} with status {}", invoices.size(), customerId, status);
+            return invoices;
+        } catch (Exception e) {
+            logger.error("Error listing invoices for customer: {} with status: {}", customerId, status, e);
+            throw e;
+        }
+    }
+
     // === DELETE ===
 
     /**

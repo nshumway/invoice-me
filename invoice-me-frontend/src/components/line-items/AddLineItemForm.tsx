@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import type { CreateLineItemRequest } from '../../models/LineItem';
+import { Button, Input } from '../shared';
 
 interface AddLineItemFormProps {
   invoiceId: string;
@@ -75,75 +76,65 @@ export const AddLineItemForm = ({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="bg-gray-50 rounded-lg p-4 space-y-4">
-      <h3 className="font-semibold text-lg">Add Line Item</h3>
+    <form
+      onSubmit={handleSubmit}
+      className="bg-gray-700/50 border border-gray-600 rounded-lg p-4 space-y-4"
+    >
+      <h3 className="font-semibold text-lg text-gray-100">Add Line Item</h3>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Description */}
         <div className="md:col-span-1">
-          <label className="block text-sm font-medium mb-1">Description</label>
-          <input
+          <Input
             type="text"
+            label="Description"
             value={description}
             onChange={e => setDescription(e.target.value)}
             placeholder="Product or service"
-            className={`w-full border rounded px-3 py-2 ${
-              errors.description ? 'border-red-500' : 'border-gray-300'
-            }`}
+            error={errors.description}
             disabled={isSubmitting}
           />
-          {errors.description && <p className="text-red-500 text-sm mt-1">{errors.description}</p>}
         </div>
 
         {/* Quantity */}
         <div>
-          <label className="block text-sm font-medium mb-1">Quantity</label>
-          <input
+          <Input
             type="number"
+            label="Quantity"
             step="0.01"
             value={quantity}
             onChange={e => setQuantity(e.target.value)}
             placeholder="0.00"
-            className={`w-full border rounded px-3 py-2 ${
-              errors.quantity ? 'border-red-500' : 'border-gray-300'
-            }`}
+            error={errors.quantity}
             disabled={isSubmitting}
           />
-          {errors.quantity && <p className="text-red-500 text-sm mt-1">{errors.quantity}</p>}
         </div>
 
         {/* Unit Price */}
         <div>
-          <label className="block text-sm font-medium mb-1">Unit Price</label>
-          <input
+          <Input
             type="number"
+            label="Unit Price"
             step="0.01"
             value={unitPrice}
             onChange={e => setUnitPrice(e.target.value)}
             placeholder="0.00"
-            className={`w-full border rounded px-3 py-2 ${
-              errors.unitPrice ? 'border-red-500' : 'border-gray-300'
-            }`}
+            error={errors.unitPrice}
             disabled={isSubmitting}
           />
-          {errors.unitPrice && <p className="text-red-500 text-sm mt-1">{errors.unitPrice}</p>}
         </div>
       </div>
 
       {/* Line Total Preview */}
-      <div className="bg-blue-50 rounded p-3">
-        <span className="text-sm font-medium">Line Total: </span>
-        <span className="text-lg font-bold text-blue-700">${lineTotal}</span>
+      <div className="bg-primary-900/30 border border-primary-700/50 rounded-lg p-3">
+        <span className="text-sm font-medium text-primary-200">Line Total: </span>
+        <span className="text-lg font-bold text-primary-100">${lineTotal}</span>
       </div>
 
       {/* Submit Button */}
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-      >
+      <Button type="submit" disabled={isSubmitting} variant="primary">
         {isSubmitting ? 'Adding...' : 'Add Line Item'}
-      </button>
+      </Button>
     </form>
   );
 };

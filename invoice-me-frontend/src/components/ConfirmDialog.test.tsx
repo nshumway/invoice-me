@@ -113,6 +113,6 @@ describe('ConfirmDialog', () => {
     render(<ConfirmDialog {...defaultProps} />);
 
     const confirmButton = screen.getByRole('button', { name: 'Confirm' });
-    expect(confirmButton).toHaveClass('bg-red-600');
+    expect(confirmButton).toHaveClass('bg-error-600');
   });
 });

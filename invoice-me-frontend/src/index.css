@@ -1,3 +1,15 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Override browser autofill styles to match dark theme */
+@layer base {
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 30px rgb(55, 65, 81) inset !important;
+    -webkit-text-fill-color: rgb(243, 244, 246) !important;
+    caret-color: rgb(243, 244, 246) !important;
+  }
+}

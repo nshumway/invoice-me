@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { invoiceApi } from '../../api/invoiceApi';
 import { customerApi } from '../../api/customerApi';
 import type { CreateInvoiceRequest } from '../../models/Invoice';
@@ -8,9 +8,19 @@ import type { CustomerListItem } from '../../models/Customer';
 
 export const InvoiceFormViewModel = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
   const [customerId, setCustomerId] = useState<string>('');
   const [invoiceNumber, setInvoiceNumber] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
+
+  // Pre-fill customer from query parameter if present
+  useEffect(() => {
+    const customerIdParam = searchParams.get('customerId');
+    if (customerIdParam) {
+      setCustomerId(customerIdParam);
+    }
+  }, [searchParams]);
 
   // Query for customer list (for dropdown)
   const { data: customers, isLoading: isLoadingCustomers } = useQuery<CustomerListItem[]>({
@@ -22,6 +32,8 @@ export const InvoiceFormViewModel = () => {
   const createMutation = useMutation({
     mutationFn: (request: CreateInvoiceRequest) => invoiceApi.create(request),
     onSuccess: invoice => {
+      // Invalidate customer queries since draft invoice count changes
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
       navigate(`/invoices/${invoice.id}`);
     },
   });

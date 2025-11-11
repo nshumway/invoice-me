@@ -1,4 +1,5 @@
 import React from 'react';
+import { Button } from './shared';
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -24,28 +25,18 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-800 rounded-lg shadow-xl max-w-md w-full border border-gray-700">
         <div className="p-6">
-          <h2 className="text-xl font-bold mb-4">{title}</h2>
-          <p className="text-gray-700 mb-6">{message}</p>
-          <div className="flex gap-3 justify-end">
-            <button
-              type="button"
-              onClick={onCancel}
-              disabled={isLoading}
-              className="bg-gray-300 text-gray-700 px-6 py-2 rounded hover:bg-gray-400 disabled:opacity-50"
-            >
+          <h2 className="text-xl font-bold mb-4 text-gray-100">{title}</h2>
+          <p className="text-gray-300 mb-6">{message}</p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-end">
+            <Button type="button" onClick={onCancel} disabled={isLoading} variant="secondary">
               {cancelLabel}
-            </button>
-            <button
-              type="button"
-              onClick={onConfirm}
-              disabled={isLoading}
-              className="bg-red-600 text-white px-6 py-2 rounded hover:bg-red-700 disabled:opacity-50"
-            >
+            </Button>
+            <Button type="button" onClick={onConfirm} disabled={isLoading} variant="danger">
               {isLoading ? 'Processing...' : confirmLabel}
-            </button>
+            </Button>
           </div>
         </div>
       </div>

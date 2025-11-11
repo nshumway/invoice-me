@@ -1,6 +1,7 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
 import { CustomerFormViewModel } from '../../viewmodels/customers/CustomerFormViewModel';
+import { Button, Input, Alert } from '../../components/shared';
 
 export const CustomerFormView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -8,164 +9,126 @@ export const CustomerFormView: React.FC = () => {
 
   if (vm.isLoadingCustomer) {
     return (
-      <div className="max-w-2xl mx-auto p-6">
-        <p className="text-gray-600">Loading customer...</p>
+      <div className="max-w-2xl mx-auto p-4 sm:p-6">
+        <p className="text-gray-400">Loading customer...</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-6">
+    <div className="max-w-2xl mx-auto p-4 sm:p-6">
+      <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-gray-100">
         {vm.isEditMode ? 'Edit Customer' : 'Create Customer'}
       </h1>
 
       <form onSubmit={vm.handleSubmit} className="space-y-6">
-        {/* Company Name */}
-        <div>
-          <label className="block text-sm font-medium mb-2">
-            Company Name <span className="text-red-500">*</span>
-          </label>
-          <input
+        <Input
+          type="text"
+          label="Company Name"
+          value={vm.companyName}
+          onChange={e => vm.setCompanyName(e.target.value)}
+          error={vm.errors.companyName}
+          required
+          autoComplete="organization"
+        />
+
+        <Input
+          type="email"
+          label="Email"
+          value={vm.email}
+          onChange={e => vm.setEmail(e.target.value)}
+          error={vm.errors.email}
+          required
+          autoComplete="email"
+        />
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Input
             type="text"
-            value={vm.companyName}
-            onChange={e => vm.setCompanyName(e.target.value)}
-            className={`w-full border rounded px-3 py-2 ${
-              vm.errors.companyName ? 'border-red-500' : 'border-gray-300'
-            }`}
+            label="Contact First Name"
+            value={vm.contactFirstName}
+            onChange={e => vm.setContactFirstName(e.target.value)}
+            autoComplete="given-name"
           />
-          {vm.errors.companyName && (
-            <p className="text-red-500 text-sm mt-1">{vm.errors.companyName}</p>
-          )}
-        </div>
 
-        {/* Email */}
-        <div>
-          <label className="block text-sm font-medium mb-2">
-            Email <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="email"
-            value={vm.email}
-            onChange={e => vm.setEmail(e.target.value)}
-            className={`w-full border rounded px-3 py-2 ${
-              vm.errors.email ? 'border-red-500' : 'border-gray-300'
-            }`}
-          />
-          {vm.errors.email && <p className="text-red-500 text-sm mt-1">{vm.errors.email}</p>}
-        </div>
-
-        {/* Contact Name */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-2">Contact First Name</label>
-            <input
-              type="text"
-              value={vm.contactFirstName}
-              onChange={e => vm.setContactFirstName(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-2">Contact Last Name</label>
-            <input
-              type="text"
-              value={vm.contactLastName}
-              onChange={e => vm.setContactLastName(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2"
-            />
-          </div>
-        </div>
-
-        {/* Phone */}
-        <div>
-          <label className="block text-sm font-medium mb-2">Phone</label>
-          <input
-            type="tel"
-            value={vm.phone}
-            onChange={e => vm.setPhone(e.target.value)}
-            className="w-full border border-gray-300 rounded px-3 py-2"
-          />
-        </div>
-
-        {/* Address */}
-        <div>
-          <label className="block text-sm font-medium mb-2">Address Line 1</label>
-          <input
+          <Input
             type="text"
-            value={vm.addressLine1}
-            onChange={e => vm.setAddressLine1(e.target.value)}
-            className="w-full border border-gray-300 rounded px-3 py-2"
+            label="Contact Last Name"
+            value={vm.contactLastName}
+            onChange={e => vm.setContactLastName(e.target.value)}
+            autoComplete="family-name"
           />
         </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-2">Address Line 2</label>
-          <input
-            type="text"
-            value={vm.addressLine2}
-            onChange={e => vm.setAddressLine2(e.target.value)}
-            className="w-full border border-gray-300 rounded px-3 py-2"
-          />
-        </div>
+        <Input
+          type="tel"
+          label="Phone"
+          value={vm.phone}
+          onChange={e => vm.setPhone(e.target.value)}
+          autoComplete="tel"
+        />
 
-        {/* City, State, Zip */}
-        <div className="grid grid-cols-3 gap-4">
-          <div className="col-span-2">
-            <label className="block text-sm font-medium mb-2">City</label>
-            <input
+        <Input
+          type="text"
+          label="Address Line 1"
+          value={vm.addressLine1}
+          onChange={e => vm.setAddressLine1(e.target.value)}
+          autoComplete="address-line1"
+        />
+
+        <Input
+          type="text"
+          label="Address Line 2"
+          value={vm.addressLine2}
+          onChange={e => vm.setAddressLine2(e.target.value)}
+          autoComplete="address-line2"
+        />
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="sm:col-span-2">
+            <Input
               type="text"
+              label="City"
               value={vm.city}
               onChange={e => vm.setCity(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2"
+              autoComplete="address-level2"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-2">State</label>
-            <input
-              type="text"
-              value={vm.state}
-              onChange={e => vm.setState(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2"
-            />
-          </div>
+          <Input
+            type="text"
+            label="State"
+            value={vm.state}
+            onChange={e => vm.setState(e.target.value)}
+            autoComplete="address-level1"
+          />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-2">Zip Code</label>
-            <input
-              type="text"
-              value={vm.zipCode}
-              onChange={e => vm.setZipCode(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-2">Country</label>
-            <input
-              type="text"
-              value={vm.country}
-              onChange={e => vm.setCountry(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2"
-            />
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Input
+            type="text"
+            label="Zip Code"
+            value={vm.zipCode}
+            onChange={e => vm.setZipCode(e.target.value)}
+            autoComplete="postal-code"
+          />
+
+          <Input
+            type="text"
+            label="Country"
+            value={vm.country}
+            onChange={e => vm.setCountry(e.target.value)}
+            autoComplete="country-name"
+          />
         </div>
 
-        {/* Submit Error */}
         {vm.errors.submit && (
-          <div className="bg-red-50 border border-red-300 rounded p-3">
-            <p className="text-red-700 text-sm">{vm.errors.submit}</p>
-          </div>
+          <Alert variant="error">
+            <p className="text-sm">{vm.errors.submit}</p>
+          </Alert>
         )}
 
-        {/* Actions */}
-        <div className="flex gap-3">
-          <button
-            type="submit"
-            disabled={vm.isSubmitting}
-            className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-          >
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Button type="submit" disabled={vm.isSubmitting} variant="primary">
             {vm.isSubmitting
               ? vm.isEditMode
                 ? 'Updating...'
@@ -173,14 +136,10 @@ export const CustomerFormView: React.FC = () => {
               : vm.isEditMode
                 ? 'Update Customer'
                 : 'Create Customer'}
-          </button>
-          <button
-            type="button"
-            onClick={vm.handleCancel}
-            className="bg-gray-300 text-gray-700 px-6 py-2 rounded hover:bg-gray-400"
-          >
+          </Button>
+          <Button type="button" onClick={vm.handleCancel} variant="secondary">
             Cancel
-          </button>
+          </Button>
         </div>
       </form>
     </div>

@@ -199,130 +199,121 @@ BigDecimal newAmountPaid = payments.stream()
 
 ---
 
-### User Story 3: Add Loading Indicator for Authentication Cold Start
+### User Story 3: Add Loading Indicator for Cold Start Delays
 
 **Priority:** High
-**Estimated Effort:** 2-3 hours
-**Status:** Ready for Development
+**Estimated Effort:** 3-4 hours
+**Status:** In Progress - Revised Approach
 
 #### Problem Statement
-The application is deployed on Render's free tier, which has a "cold start" delay of 30-60 seconds when the backend service spins up after inactivity. When users attempt to log in or sign up during a cold start, they experience a long delay with no feedback, leading to confusion about whether the application is working.
+The application is deployed on Render's free tier, which has a "cold start" delay of 30-60 seconds when the backend service spins up after inactivity. When users make ANY request (login, create invoice, etc.) during a cold start, they experience a long delay with no feedback, leading to confusion about whether the application is working.
 
 **Current User Experience:**
-1. User navigates to login page
-2. User enters credentials and clicks "Log In"
-3. Button shows "Logging In..." spinner
-4. **30-60 second delay with no additional feedback**
-5. User doesn't know if the app is broken, their connection failed, or if they should wait
+1. User performs any action that requires API call
+2. Button shows loading spinner
+3. **30-60 second delay with no additional feedback**
+4. User doesn't know if the app is broken, their connection failed, or if they should wait
 
 #### Acceptance Criteria
-- [ ] Login and signup forms display informative message about potential delay
-- [ ] Message appears **before** user attempts to log in/sign up (proactive, not reactive)
-- [ ] Message is visible but not intrusive
-- [ ] Message clearly explains the delay is due to free hosting and is normal
-- [ ] Message provides approximate wait time expectation (30-60 seconds)
-- [ ] Message only appears in production environment (not in local development)
-- [ ] UI remains accessible and professional
+- [x] Global loading spinner displays for all API requests
+- [x] Progressive feedback when requests exceed 5 seconds
+- [x] Toast/notification explains server is waking up (appears after 5s delay)
+- [x] Works for ALL API calls, not just authentication
+- [x] Non-intrusive - only appears when actually needed
+- [x] Message clearly explains the delay is due to free hosting
+- [x] No environment detection required - works based on actual request duration
 
-#### Technical Implementation Plan
+#### Technical Implementation Plan - REVISED
 
-**Approach:** Add an informational alert/banner to the login and signup views that explains the potential cold start delay.
+**Approach:** Implement API-level request timeout detection with progressive user feedback using axios interceptors and toast notifications.
 
-**Design Recommendations:**
+**Why This Approach is Better:**
+- ✅ Works for ALL API calls (login, create customer, record payment, etc.)
+- ✅ Only shows when delay actually happens (not a persistent warning)
+- ✅ More professional UX - progressive disclosure
+- ✅ No need for environment detection
+- ✅ Helps both first-time and returning users
+- ✅ Centralized logic - easier to maintain
 
-1. **Visual Style:**
-   - Use info/warning color scheme (blue or yellow, not red error)
-   - Small, unobtrusive banner below the form title
-   - Icon: Info icon (ⓘ) or clock icon
-   - Dismissible or always visible (recommend always visible)
+**Implementation Details:**
 
-2. **Message Content:**
-   ```
-   ⓘ First login may take 30-60 seconds while the server starts up.
-   This is normal for free hosting services.
-   ```
+1. **Global Loading State:**
+   - Create React Context for global loading state
+   - Display loading spinner overlay when any request is pending
+   - Use axios request/response interceptors to track pending requests
 
-   Alternative (more concise):
-   ```
-   ⓘ Please be patient: First request may take up to 60 seconds due to
-   server startup on our free hosting tier.
-   ```
+2. **Progressive Timeout Notifications:**
+   - **5 seconds:** Show toast: "Server is starting up, please wait..."
+   - **15 seconds:** Update toast: "Still loading... The server is waking up on free hosting."
+   - **30 seconds:** Update toast: "Almost there... Free tier servers can take up to 60 seconds to start."
+   - Auto-dismiss toast when request completes
 
-3. **Placement Options:**
-   - **Option A (Recommended):** Below the "Log In" / "Sign Up" title, above the form
-   - **Option B:** Above the submit button, below the form fields
-   - **Option C:** As a small footnote below the submit button
+3. **Toast Component:**
+   - Position: top-right corner
+   - Style: Info variant (blue), semi-transparent backdrop
+   - Icon: Clock or loading spinner
+   - Auto-dismiss on request completion
 
-4. **Environment Detection:**
-   ```typescript
-   // In a config or utils file
-   export const isProduction = import.meta.env.PROD;
-   export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
-   export const showColdStartWarning = API_BASE_URL.includes('render.com');
-   ```
+**Code Structure:**
 
-**Example Implementation:**
+```typescript
+// src/contexts/LoadingContext.tsx
+export const LoadingProvider: React.FC = ({ children }) => {
+  const [pendingRequests, setPendingRequests] = useState(0);
+  const [slowRequestToast, setSlowRequestToast] = useState<string | null>(null);
 
-```tsx
-// LoginView.tsx
-export const LoginView: React.FC = () => {
-  const vm = LoginViewModel();
+  // Axios interceptors track pending requests
+  // Show toast if any request exceeds thresholds
+};
 
-  return (
-    <div className="min-h-screen bg-gray-900 dark:bg-gray-950 flex items-center justify-center p-6">
-      <div className="max-w-md w-full bg-gray-800 dark:bg-gray-900 rounded-lg shadow-xl border border-gray-700 p-8">
-        <h1 className="text-3xl font-bold text-center mb-2 text-gray-100">Log In</h1>
+// src/api/apiClient.ts
+const setupInterceptors = (loadingContext) => {
+  apiClient.interceptors.request.use((config) => {
+    loadingContext.incrementPending();
+    config.metadata = { startTime: Date.now() };
 
-        {/* NEW: Cold start warning */}
-        {import.meta.env.PROD && (
-          <div className="mb-6 bg-blue-900/30 border border-blue-700/50 rounded-lg p-3 flex items-start gap-2">
-            <svg className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" /* info icon SVG */>
-              {/* Icon path */}
-            </svg>
-            <p className="text-sm text-blue-200">
-              <strong>Please note:</strong> First login may take 30-60 seconds
-              while the server starts up. This is normal for free hosting.
-            </p>
-          </div>
-        )}
+    // Set timeout to show progressive messages
+    const timeoutId = setTimeout(() => {
+      loadingContext.showToast("Server is starting up, please wait...");
+    }, 5000);
 
-        <form onSubmit={vm.handleSubmit} className="space-y-4">
-          {/* Rest of form */}
-        </form>
-      </div>
-    </div>
+    config.metadata.timeoutId = timeoutId;
+    return config;
+  });
+
+  apiClient.interceptors.response.use(
+    (response) => {
+      clearTimeout(response.config.metadata.timeoutId);
+      loadingContext.decrementPending();
+      loadingContext.hideToast();
+      return response;
+    },
+    (error) => {
+      clearTimeout(error.config.metadata.timeoutId);
+      loadingContext.decrementPending();
+      loadingContext.hideToast();
+      throw error;
+    }
   );
 };
 ```
 
-**Additional Enhancement (Optional):**
-- After clicking submit, if request takes >5 seconds, show additional message:
-  ```
-  "Still loading... The server is waking up. Thanks for your patience!"
-  ```
-- Use a timeout to detect slow requests and provide progressive feedback
-
-#### Files to Modify
-- `invoice-me-frontend/src/views/auth/LoginView.tsx`
-- `invoice-me-frontend/src/views/auth/SignupView.tsx`
-- `invoice-me-frontend/src/config/environment.ts` (new - for environment detection)
-- `invoice-me-frontend/src/viewmodels/auth/LoginViewModel.ts` (optional - for progressive feedback)
-- `invoice-me-frontend/src/viewmodels/auth/SignupViewModel.ts` (optional - for progressive feedback)
+#### Files to Create/Modify
+- `invoice-me-frontend/src/contexts/LoadingContext.tsx` (new)
+- `invoice-me-frontend/src/components/shared/Toast.tsx` (new)
+- `invoice-me-frontend/src/components/shared/LoadingOverlay.tsx` (new)
+- `invoice-me-frontend/src/api/apiClient.ts` (modify - add interceptors)
+- `invoice-me-frontend/src/App.tsx` (modify - wrap with LoadingProvider)
 
 #### Testing Checklist
-- [ ] Message appears on login page in production build
-- [ ] Message appears on signup page in production build
-- [ ] Message does NOT appear in local development
-- [ ] Message does not interfere with form validation errors
-- [ ] Message is readable and appropriately styled with dark theme
-- [ ] Message does not cause layout shift
-- [ ] Mobile responsive (message wraps properly on small screens)
-
-#### Design Review Questions
-1. Should the message be dismissible? (Recommendation: No - users may forget and be confused on subsequent visits)
-2. Should we add a "Learn more" link explaining free tier limitations?
-3. Should we show a different message during the actual wait vs. before submission?
-4. Do we want to track cold start frequency/duration for potential tier upgrade decision?
+- [x] Loading spinner appears for all API requests
+- [x] Toast appears after 5 seconds of waiting
+- [x] Toast updates at 15s and 30s intervals
+- [x] Toast auto-dismisses when request completes
+- [x] Works for login, signup, create customer, record payment, etc.
+- [x] Multiple simultaneous requests handled correctly
+- [x] Error responses also dismiss toast and spinner
+- [x] Mobile responsive positioning
 
 ---
 

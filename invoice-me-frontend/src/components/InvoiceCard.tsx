@@ -1,4 +1,6 @@
 import type { InvoiceListItem } from '../models/Invoice';
+import { StatusBadge } from './shared/StatusBadge';
+import { Button } from './shared/Button';
 
 interface InvoiceCardProps {
   invoice: InvoiceListItem;
@@ -7,45 +9,37 @@ interface InvoiceCardProps {
 }
 
 export function InvoiceCard({ invoice, onView, onDelete }: InvoiceCardProps) {
-  const statusColors = {
-    DRAFT: 'bg-gray-100 text-gray-800',
-    SENT: 'bg-blue-100 text-blue-800',
-    PAID: 'bg-green-100 text-green-800',
-    OVERDUE: 'bg-red-100 text-red-800',
-    CANCELLED: 'bg-gray-100 text-gray-600',
-  };
-
-  const statusColor = statusColors[invoice.status as keyof typeof statusColors] || 'bg-gray-100';
-
   return (
     <div
-      className="border rounded-lg p-4 hover:shadow-md transition-shadow"
+      className="bg-gray-800 border border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow"
       data-testid="invoice-card"
     >
       <div className="flex justify-between items-start">
         <div>
-          <h3 className="font-semibold text-lg" data-testid="invoice-number">
+          <h3 className="font-semibold text-lg text-gray-100" data-testid="invoice-number">
             {invoice.invoiceNumber}
           </h3>
-          <p className="text-gray-600" data-testid="customer-name">
+          <p className="text-gray-400" data-testid="customer-name">
             {invoice.customerName}
           </p>
         </div>
-        <span className={`px-2 py-1 rounded text-sm ${statusColor}`} data-testid="invoice-status">
-          {invoice.status}
+        <span data-testid="invoice-status">
+          <StatusBadge
+            status={invoice.status as 'DRAFT' | 'SENT' | 'PAID' | 'OVERDUE' | 'CANCELLED'}
+          />
         </span>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
         <div>
           <p className="text-gray-500">Total</p>
-          <p className="font-medium" data-testid="invoice-total">
+          <p className="font-medium text-gray-200" data-testid="invoice-total">
             ${invoice.total.toFixed(2)}
           </p>
         </div>
         <div>
           <p className="text-gray-500">Amount Paid</p>
-          <p className="font-medium" data-testid="amount-paid">
+          <p className="font-medium text-gray-200" data-testid="amount-paid">
             ${invoice.amountPaid.toFixed(2)}
           </p>
         </div>
@@ -57,24 +51,21 @@ export function InvoiceCard({ invoice, onView, onDelete }: InvoiceCardProps) {
         </div>
       )}
 
-      <div className="mt-4 flex gap-2">
+      <div className="mt-4 flex flex-wrap gap-2">
         {onView && (
-          <button
-            onClick={() => onView(invoice.id)}
-            className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-            data-testid="view-button"
-          >
+          <Button onClick={() => onView(invoice.id)} size="sm" data-testid="view-button">
             View
-          </button>
+          </Button>
         )}
         {onDelete && invoice.status === 'DRAFT' && (
-          <button
+          <Button
             onClick={() => onDelete(invoice.id)}
-            className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+            variant="danger"
+            size="sm"
             data-testid="delete-button"
           >
             Delete
-          </button>
+          </Button>
         )}
       </div>
     </div>

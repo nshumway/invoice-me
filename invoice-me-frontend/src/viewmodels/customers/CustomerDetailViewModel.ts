@@ -2,13 +2,16 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { customerApi } from '../../api/customerApi';
+import { invoiceApi } from '../../api/invoiceApi';
 import type { Customer } from '../../models/Customer';
+import type { InvoiceListItem } from '../../models/Invoice';
 
 export const CustomerDetailViewModel = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<string | undefined>(undefined);
 
   // Query for customer details
   const {
@@ -19,6 +22,13 @@ export const CustomerDetailViewModel = () => {
   } = useQuery<Customer>({
     queryKey: ['customers', 'detail', id],
     queryFn: () => customerApi.getById(id!),
+    enabled: !!id,
+  });
+
+  // Query for customer invoices
+  const { data: invoices, isLoading: invoicesLoading } = useQuery<InvoiceListItem[]>({
+    queryKey: ['invoices', 'customer', id, invoiceStatusFilter],
+    queryFn: () => invoiceApi.listAll(id!, invoiceStatusFilter),
     enabled: !!id,
   });
 
@@ -65,17 +75,35 @@ export const CustomerDetailViewModel = () => {
     setShowDeleteDialog(false);
   };
 
+  const handleFilterByStatus = (status: string | undefined) => {
+    setInvoiceStatusFilter(status);
+  };
+
+  const handleViewInvoice = (invoiceId: string) => {
+    navigate(`/invoices/${invoiceId}`);
+  };
+
+  const handleCreateInvoice = () => {
+    navigate(`/invoices/new?customerId=${id}`);
+  };
+
   return {
     customer,
     isLoading,
     isError,
     errorMessage,
     showDeleteDialog,
+    invoices,
+    invoicesLoading,
+    invoiceStatusFilter,
     handleBack,
     handleEdit,
     handleDelete,
     handleConfirmDelete,
     handleCancelDelete,
+    handleFilterByStatus,
+    handleViewInvoice,
+    handleCreateInvoice,
     isDeleting: deleteMutation.isPending,
   };
 };
