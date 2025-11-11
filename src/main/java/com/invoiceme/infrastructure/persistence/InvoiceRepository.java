@@ -1,6 +1,7 @@
 package com.invoiceme.infrastructure.persistence;
 
 import com.invoiceme.domain.invoice.Invoice;
+import com.invoiceme.domain.invoice.InvoiceStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -29,9 +30,29 @@ public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
     List<Invoice> findAllByIsDeletedFalseOrderByInvoiceDateDesc();
 
     /**
+     * Find all non-deleted invoices for the current user, ordered by invoice date descending.
+     */
+    List<Invoice> findAllByCreatedByAndIsDeletedFalseOrderByInvoiceDateDesc(UUID createdBy);
+
+    /**
      * Find all non-deleted invoices for a specific customer.
      */
     List<Invoice> findAllByCustomerIdAndIsDeletedFalse(UUID customerId);
+
+    /**
+     * Find all non-deleted invoices by status, ordered by invoice date descending.
+     */
+    List<Invoice> findAllByStatusAndIsDeletedFalseOrderByInvoiceDateDesc(InvoiceStatus status);
+
+    /**
+     * Find all non-deleted invoices by status for the current user, ordered by invoice date descending.
+     */
+    List<Invoice> findAllByCreatedByAndStatusAndIsDeletedFalseOrderByInvoiceDateDesc(UUID createdBy, InvoiceStatus status);
+
+    /**
+     * Find all non-deleted invoices for a specific customer by status.
+     */
+    List<Invoice> findAllByCustomerIdAndStatusAndIsDeletedFalse(UUID customerId, InvoiceStatus status);
 
     /**
      * Find invoice numbers that start with a specific prefix.

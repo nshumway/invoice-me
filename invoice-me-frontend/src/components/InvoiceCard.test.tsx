@@ -61,7 +61,7 @@ describe('InvoiceCard', () => {
   });
 
   it('should not show delete button for non-DRAFT invoices', () => {
-    const sentInvoice = { ...mockInvoice, status: 'SENT' };
+    const sentInvoice = { ...mockInvoice, status: 'SENT' as const };
     const onDelete = vi.fn();
 
     render(<InvoiceCard invoice={sentInvoice} onDelete={onDelete} />);

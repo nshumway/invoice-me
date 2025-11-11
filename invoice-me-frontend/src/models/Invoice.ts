@@ -22,8 +22,10 @@ export interface CreateInvoiceRequest {
 }
 
 export interface UpdateInvoiceRequest {
-  notes?: string;
+  id: string;
   version: number;
+  invoiceNumber?: string;
+  notes?: string;
 }
 
 export interface InvoiceListItem {
@@ -31,7 +33,7 @@ export interface InvoiceListItem {
   invoiceNumber: string;
   customerName: string;
   invoiceDate: string | null;
-  status: string;
+  status: 'DRAFT' | 'SENT' | 'PAID' | 'OVERDUE' | 'CANCELLED';
   total: number;
   amountPaid: number;
 }

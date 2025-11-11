@@ -92,14 +92,20 @@ public class CustomerService {
                     request.getId(), request.getCompanyName(), request.getVersion());
 
         try {
-            // Load entity with authorization check
-            UUID currentUserId = UserContext.getCurrentUser();
-            Customer customer = customerRepository.findByIdAndCreatedByAndIsDeletedFalse(request.getId(), currentUserId)
+            // Load entity
+            Customer customer = customerRepository.findByIdAndIsDeletedFalse(request.getId())
                     .orElseThrow(() -> {
-                        logger.warn("Customer not found or access denied for update: id={}, userId={}",
-                                   request.getId(), currentUserId);
+                        logger.warn("Customer not found for update: id={}", request.getId());
                         return new NotFoundException("Customer not found");
                     });
+
+            // Authorization check - ensure user owns this customer
+            UUID currentUserId = UserContext.getCurrentUser();
+            if (customer.getCreatedBy() != null && !customer.getCreatedBy().equals(currentUserId)) {
+                logger.warn("User {} attempted to update customer {} owned by {}",
+                           currentUserId, request.getId(), customer.getCreatedBy());
+                throw new NotFoundException("Customer not found");
+            }
 
             // Optimistic locking check
             if (!customer.getVersion().equals(request.getVersion())) {
@@ -169,13 +175,19 @@ public class CustomerService {
         logger.debug("Delete customer request: id={}, version={}", request.getId(), request.getVersion());
 
         try {
-            UUID currentUserId = UserContext.getCurrentUser();
-            Customer customer = customerRepository.findByIdAndCreatedByAndIsDeletedFalse(request.getId(), currentUserId)
+            Customer customer = customerRepository.findByIdAndIsDeletedFalse(request.getId())
                     .orElseThrow(() -> {
-                        logger.warn("Customer not found or access denied for deletion: id={}, userId={}",
-                                   request.getId(), currentUserId);
+                        logger.warn("Customer not found for deletion: id={}", request.getId());
                         return new NotFoundException("Customer not found");
                     });
+
+            // Authorization check - ensure user owns this customer
+            UUID currentUserId = UserContext.getCurrentUser();
+            if (customer.getCreatedBy() != null && !customer.getCreatedBy().equals(currentUserId)) {
+                logger.warn("User {} attempted to delete customer {} owned by {}",
+                           currentUserId, request.getId(), customer.getCreatedBy());
+                throw new NotFoundException("Customer not found");
+            }
 
             // Optimistic locking check
             if (!customer.getVersion().equals(request.getVersion())) {
@@ -223,12 +235,19 @@ public class CustomerService {
         logger.debug("Retrieving customer by id: {}", id);
 
         try {
-            UUID currentUserId = UserContext.getCurrentUser();
-            Customer customer = customerRepository.findByIdAndCreatedByAndIsDeletedFalse(id, currentUserId)
+            Customer customer = customerRepository.findByIdAndIsDeletedFalse(id)
                     .orElseThrow(() -> {
-                        logger.warn("Customer not found or access denied: id={}, userId={}", id, currentUserId);
+                        logger.warn("Customer not found: id={}", id);
                         return new NotFoundException("Customer not found");
                     });
+
+            // Authorization check - ensure user owns this customer
+            UUID currentUserId = UserContext.getCurrentUser();
+            if (customer.getCreatedBy() != null && !customer.getCreatedBy().equals(currentUserId)) {
+                logger.warn("User {} attempted to access customer {} owned by {}",
+                           currentUserId, id, customer.getCreatedBy());
+                throw new NotFoundException("Customer not found");
+            }
 
             logger.debug("Successfully retrieved customer: id={}, companyName={}",
                         customer.getId(), customer.getCompanyName());
@@ -250,12 +269,13 @@ public class CustomerService {
         try {
             UUID currentUserId = UserContext.getCurrentUser();
             List<CustomerListItemResponse> customers = customerRepository
-                    .findAllByCreatedByAndIsDeletedFalseOrderByCompanyName(currentUserId)
+                    .findAllByIsDeletedFalseOrderByCompanyName()
                     .stream()
+                    .filter(customer -> customer.getCreatedBy() == null || customer.getCreatedBy().equals(currentUserId))
                     .map(customerMapper::toListItem)
                     .collect(Collectors.toList());
 
-            logger.info("Successfully retrieved {} customer(s) for user {}", customers.size(), currentUserId);
+            logger.info("Successfully retrieved {} customer(s)", customers.size());
             return customers;
         } catch (Exception e) {
             logger.error("Unexpected error listing all customers", e);

@@ -6,6 +6,7 @@ import com.invoiceme.application.invoice.dto.CreateInvoiceRequest;
 import com.invoiceme.application.invoice.dto.InvoiceListItemResponse;
 import com.invoiceme.application.invoice.dto.InvoiceResponse;
 import com.invoiceme.application.invoice.dto.UpdateInvoiceRequest;
+import com.invoiceme.domain.invoice.InvoiceStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -246,7 +247,7 @@ public class InvoiceController {
     @Operation(
         summary = "List all invoices",
         description = "Retrieves all invoices, sorted by invoice date descending (most recent first). " +
-                     "Can optionally filter by customer ID."
+                     "Can optionally filter by customer ID and/or status."
     )
     @ApiResponses(value = {
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -266,12 +267,18 @@ public class InvoiceController {
     @GetMapping
     public ResponseEntity<ApiResponse<List<InvoiceListItemResponse>>> listInvoices(
             @Parameter(description = "Optional customer ID to filter invoices")
-            @RequestParam(required = false) UUID customerId) {
+            @RequestParam(required = false) UUID customerId,
+            @Parameter(description = "Optional status to filter invoices (DRAFT, SENT, PAID)")
+            @RequestParam(required = false) InvoiceStatus status) {
 
         List<InvoiceListItemResponse> invoices;
 
-        if (customerId != null) {
+        if (customerId != null && status != null) {
+            invoices = invoiceService.listInvoicesByCustomerAndStatus(customerId, status);
+        } else if (customerId != null) {
             invoices = invoiceService.listInvoicesByCustomer(customerId);
+        } else if (status != null) {
+            invoices = invoiceService.listInvoicesByStatus(status);
         } else {
             invoices = invoiceService.listAllInvoices();
         }

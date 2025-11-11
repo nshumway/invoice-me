@@ -7,6 +7,7 @@ import type { InvoiceListItem } from '../../models/Invoice';
 export const InvoiceListViewModel = () => {
   const navigate = useNavigate();
   const [customerFilter, setCustomerFilter] = useState<string | undefined>(undefined);
+  const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
 
   // Query for invoice list
   const {
@@ -16,8 +17,8 @@ export const InvoiceListViewModel = () => {
     error,
     refetch,
   } = useQuery<InvoiceListItem[]>({
-    queryKey: ['invoices', 'list', customerFilter],
-    queryFn: () => invoiceApi.listAll(customerFilter),
+    queryKey: ['invoices', 'list', customerFilter, statusFilter],
+    queryFn: () => invoiceApi.listAll(customerFilter, statusFilter),
   });
 
   // Computed properties
@@ -44,6 +45,14 @@ export const InvoiceListViewModel = () => {
     setCustomerFilter(undefined);
   };
 
+  const handleFilterByStatus = (status: string | undefined) => {
+    setStatusFilter(status);
+  };
+
+  const handleClearStatusFilter = () => {
+    setStatusFilter(undefined);
+  };
+
   // Expose state and actions to view
   return {
     invoices,
@@ -51,10 +60,13 @@ export const InvoiceListViewModel = () => {
     isError,
     errorMessage,
     customerFilter,
+    statusFilter,
     handleCreateNew,
     handleViewInvoice,
     handleFilterByCustomer,
     handleClearFilter,
+    handleFilterByStatus,
+    handleClearStatusFilter,
     refetch,
   };
 };

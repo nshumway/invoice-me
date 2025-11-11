@@ -173,11 +173,11 @@ class PaymentServiceIntegrationTest {
         assertEquals(new BigDecimal("200.00"), invoice.getAmountPaid());
         assertEquals(new BigDecimal("300.00"), invoice.getBalance());
 
-        // And: Customer statistics should NOT change (still SENT)
+        // And: Customer statistics should reflect partial payment
         customer = customerService.getCustomerById(customer.getId());
         assertEquals(1, customer.getSentInvoiceCount());
         assertEquals(0, customer.getPaidInvoiceCount());
-        assertEquals(new BigDecimal("500.00"), customer.getTotalOutstanding());
+        assertEquals(new BigDecimal("300.00"), customer.getTotalOutstanding()); // Reduced by payment
     }
 
     @Test

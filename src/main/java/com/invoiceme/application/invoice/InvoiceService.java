@@ -1,5 +1,6 @@
 package com.invoiceme.application.invoice;
 
+import com.invoiceme.application.common.UserContext;
 import com.invoiceme.application.invoice.dto.*;
 import com.invoiceme.domain.common.exceptions.NotFoundException;
 import com.invoiceme.domain.common.exceptions.OptimisticLockException;
@@ -208,24 +209,25 @@ public class InvoiceService {
     // === LIST ===
 
     /**
-     * Lists all invoices, sorted by invoice date descending (most recent first).
+     * Lists all invoices for the current user, sorted by invoice date descending (most recent first).
      * Excludes soft-deleted invoices.
      * @return List of invoice summaries
      */
     @Transactional(readOnly = true)
     public List<InvoiceListItemResponse> listAllInvoices() {
-        logger.info("Listing all invoices");
+        UUID currentUserId = UserContext.getCurrentUser();
+        logger.info("Listing all invoices for user: {}", currentUserId);
 
         try {
-            List<InvoiceListItemResponse> invoices = invoiceRepository.findAllByIsDeletedFalseOrderByInvoiceDateDesc()
+            List<InvoiceListItemResponse> invoices = invoiceRepository.findAllByCreatedByAndIsDeletedFalseOrderByInvoiceDateDesc(currentUserId)
                     .stream()
                     .map(invoiceMapper::toListItem)
                     .collect(Collectors.toList());
 
-            logger.debug("Found {} invoices", invoices.size());
+            logger.debug("Found {} invoices for user {}", invoices.size(), currentUserId);
             return invoices;
         } catch (Exception e) {
-            logger.error("Error listing all invoices", e);
+            logger.error("Error listing all invoices for user: {}", currentUserId, e);
             throw e;
         }
     }
@@ -249,6 +251,54 @@ public class InvoiceService {
             return invoices;
         } catch (Exception e) {
             logger.error("Error listing invoices for customer: {}", customerId, e);
+            throw e;
+        }
+    }
+
+    /**
+     * Lists all invoices for the current user filtered by status.
+     * @param status Invoice status to filter by
+     * @return List of invoice summaries matching the status
+     */
+    @Transactional(readOnly = true)
+    public List<InvoiceListItemResponse> listInvoicesByStatus(InvoiceStatus status) {
+        UUID currentUserId = UserContext.getCurrentUser();
+        logger.info("Listing invoices by status: {} for user: {}", status, currentUserId);
+
+        try {
+            List<InvoiceListItemResponse> invoices = invoiceRepository.findAllByCreatedByAndStatusAndIsDeletedFalseOrderByInvoiceDateDesc(currentUserId, status)
+                    .stream()
+                    .map(invoiceMapper::toListItem)
+                    .collect(Collectors.toList());
+
+            logger.debug("Found {} invoices with status {} for user {}", invoices.size(), status, currentUserId);
+            return invoices;
+        } catch (Exception e) {
+            logger.error("Error listing invoices by status: {} for user: {}", status, currentUserId, e);
+            throw e;
+        }
+    }
+
+    /**
+     * Lists all invoices for a specific customer filtered by status.
+     * @param customerId Customer ID to filter by
+     * @param status Invoice status to filter by
+     * @return List of invoice summaries matching both filters
+     */
+    @Transactional(readOnly = true)
+    public List<InvoiceListItemResponse> listInvoicesByCustomerAndStatus(UUID customerId, InvoiceStatus status) {
+        logger.info("Listing invoices for customer: {} with status: {}", customerId, status);
+
+        try {
+            List<InvoiceListItemResponse> invoices = invoiceRepository.findAllByCustomerIdAndStatusAndIsDeletedFalse(customerId, status)
+                    .stream()
+                    .map(invoiceMapper::toListItem)
+                    .collect(Collectors.toList());
+
+            logger.debug("Found {} invoices for customer {} with status {}", invoices.size(), customerId, status);
+            return invoices;
+        } catch (Exception e) {
+            logger.error("Error listing invoices for customer: {} with status: {}", customerId, status, e);
             throw e;
         }
     }

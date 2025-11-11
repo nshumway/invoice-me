@@ -15,8 +15,12 @@ export const invoiceApi = {
   },
 
   // GET /api/invoices
-  listAll: async (customerId?: string): Promise<InvoiceListItem[]> => {
-    const url = customerId ? `/invoices?customerId=${customerId}` : '/invoices';
+  listAll: async (customerId?: string, status?: string): Promise<InvoiceListItem[]> => {
+    const params = new URLSearchParams();
+    if (customerId) params.append('customerId', customerId);
+    if (status) params.append('status', status);
+
+    const url = params.toString() ? `/invoices?${params.toString()}` : '/invoices';
     const response = await apiClient.get<ApiResponse<InvoiceListItem[]>>(url);
     return response.data.data;
   },

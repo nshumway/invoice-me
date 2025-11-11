@@ -132,6 +132,7 @@ describe('invoiceApi', () => {
   describe('update', () => {
     it('should update an invoice', async () => {
       const request: UpdateInvoiceRequest = {
+        id: '456',
         notes: 'Updated notes',
         version: 0,
       };

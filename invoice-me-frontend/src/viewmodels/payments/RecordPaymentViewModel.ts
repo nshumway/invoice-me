@@ -24,9 +24,12 @@ export const useRecordPaymentViewModel = (invoice: Invoice, onSuccess: () => voi
   const recordMutation = useMutation({
     mutationFn: paymentApi.record,
     onSuccess: () => {
-      // Invalidate invoice query to refresh data
-      queryClient.invalidateQueries({ queryKey: ['invoices', invoice.id] });
+      // Invalidate invoice query to refresh data (status, amountPaid may change)
+      queryClient.invalidateQueries({ queryKey: ['invoices', 'detail', invoice.id] });
+      queryClient.invalidateQueries({ queryKey: ['invoices', 'list'] });
       queryClient.invalidateQueries({ queryKey: ['payments', 'invoice', invoice.id] });
+      // Invalidate customer queries since outstanding amount changes when payment is recorded
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
 
       // Reset form
       setAmount('');
