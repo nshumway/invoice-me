@@ -173,11 +173,11 @@ export const InvoiceDetailView: React.FC = () => {
           </div>
 
           {/* Payments Section */}
-          {vm.canRecordPayment && (
+          {vm.showPayments && (
             <div>
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4">
                 <h2 className="text-xl font-semibold text-gray-100">Payments</h2>
-                {!vm.showPaymentForm && (
+                {!vm.showPaymentForm && vm.canRecordPayment && (
                   <Button onClick={vm.handleRecordPayment} variant="success">
                     Record Payment
                   </Button>
