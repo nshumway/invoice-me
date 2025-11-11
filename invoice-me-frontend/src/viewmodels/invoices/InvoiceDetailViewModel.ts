@@ -109,10 +109,8 @@ export const InvoiceDetailViewModel = (invoiceId: string) => {
   const canEdit = invoice?.status === 'DRAFT';
   const canDelete = invoice?.status === 'DRAFT';
   const canMarkAsSent = invoice?.status === 'DRAFT';
-  const canRecordPayment =
-    (invoice?.status === 'SENT' || invoice?.status === 'PAID') &&
-    invoice &&
-    invoice.amountPaid < invoice.total;
+  const showPayments = invoice?.status === 'SENT' || invoice?.status === 'PAID';
+  const canRecordPayment = showPayments && invoice && invoice.amountPaid < invoice.total;
 
   const isSubmitting =
     updateMutation.isPending || markAsSentMutation.isPending || deleteMutation.isPending;
@@ -197,6 +195,7 @@ export const InvoiceDetailViewModel = (invoiceId: string) => {
     canEdit,
     canDelete,
     canMarkAsSent,
+    showPayments,
     canRecordPayment,
     isSubmitting,
     updateErrorMessage,
