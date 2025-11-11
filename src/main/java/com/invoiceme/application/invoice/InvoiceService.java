@@ -343,9 +343,11 @@ public class InvoiceService {
      * Event listener for payment recorded.
      * Recalculates invoice amountPaid and checks if invoice should transition to PAID status.
      * This participates in the parent transaction.
+     * Order(1) ensures this runs before InvoiceEventHandler to update invoice.amountPaid first.
      * @param event Payment recorded event
      */
     @EventListener
+    @org.springframework.core.annotation.Order(1)
     @Transactional(propagation = Propagation.MANDATORY)
     public void onPaymentRecorded(PaymentRecordedEvent event) {
         logger.info("Handling PaymentRecordedEvent: paymentId={}, invoiceId={}, amount={}",
