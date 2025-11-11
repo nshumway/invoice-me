@@ -31,6 +31,8 @@ export const Toast: React.FC<ToastProps> = ({
     <div
       className={`fixed top-4 right-4 z-50 max-w-sm w-full sm:w-auto shadow-lg rounded-lg border p-4 flex items-start gap-3 animate-slide-in ${variantClasses[variant]}`}
       role="alert"
+      aria-live="polite"
+      aria-atomic="true"
     >
       {/* Loading spinner icon */}
       <div className="flex-shrink-0">

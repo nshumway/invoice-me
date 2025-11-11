@@ -20,9 +20,9 @@ export const Input: React.FC<InputProps> = ({
 
   const inputClasses = `
     w-full bg-gray-700 text-gray-100 border rounded px-3 py-2
-    focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent
+    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:border-transparent
     disabled:opacity-50 disabled:cursor-not-allowed
-    ${error ? 'border-error-500 focus:ring-error-500' : 'border-gray-600'}
+    ${error ? 'border-error-500 focus-visible:ring-error-500' : 'border-gray-600'}
     ${className}
   `.trim();
 

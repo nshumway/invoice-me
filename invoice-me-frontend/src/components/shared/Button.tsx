@@ -12,13 +12,15 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    'bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500 disabled:bg-primary-600/50',
-  secondary: 'bg-gray-600 text-white hover:bg-gray-700 focus:ring-gray-500 disabled:bg-gray-600/50',
+    'bg-primary-600 text-white hover:bg-primary-700 focus-visible:ring-primary-500 disabled:bg-primary-600/50',
+  secondary:
+    'bg-gray-600 text-white hover:bg-gray-700 focus-visible:ring-gray-500 disabled:bg-gray-600/50',
   danger:
-    'bg-error-600 text-white hover:bg-error-700 focus:ring-error-500 disabled:bg-error-600/50',
+    'bg-error-600 text-white hover:bg-error-700 focus-visible:ring-error-500 disabled:bg-error-600/50',
   success:
-    'bg-success-600 text-white hover:bg-success-700 focus:ring-success-500 disabled:bg-success-600/50',
-  ghost: 'bg-transparent text-gray-300 hover:bg-gray-700 focus:ring-gray-500 disabled:opacity-50',
+    'bg-success-600 text-white hover:bg-success-700 focus-visible:ring-success-500 disabled:bg-success-600/50',
+  ghost:
+    'bg-transparent text-gray-300 hover:bg-gray-700 focus-visible:ring-gray-500 disabled:opacity-50',
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
@@ -38,7 +40,7 @@ export const Button: React.FC<ButtonProps> = ({
   ...props
 }) => {
   const baseClasses =
-    'rounded font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:cursor-not-allowed';
+    'rounded font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 disabled:cursor-not-allowed';
   const widthClass = fullWidth ? 'w-full' : '';
 
   return (

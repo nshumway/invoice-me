@@ -339,6 +339,7 @@ class InvoiceServiceTest {
     @Test
     void testListAllInvoices() {
         // Given
+        UUID currentUserId = UserContext.getCurrentUser();
         UUID customerId1 = UUID.randomUUID();
         UUID customerId2 = UUID.randomUUID();
 
@@ -346,7 +347,7 @@ class InvoiceServiceTest {
         Invoice invoice2 = createTestInvoice(customerId2, "INV-002");
         Invoice invoice3 = createTestInvoice(customerId1, "INV-003");
 
-        when(invoiceRepository.findAllByIsDeletedFalseOrderByInvoiceDateDesc())
+        when(invoiceRepository.findAllByCreatedByAndIsDeletedFalseOrderByInvoiceDateDesc(currentUserId))
                 .thenReturn(Arrays.asList(invoice1, invoice2, invoice3));
 
         // When
@@ -354,13 +355,14 @@ class InvoiceServiceTest {
 
         // Then
         assertEquals(3, result.size());
-        verify(invoiceRepository).findAllByIsDeletedFalseOrderByInvoiceDateDesc();
+        verify(invoiceRepository).findAllByCreatedByAndIsDeletedFalseOrderByInvoiceDateDesc(currentUserId);
     }
 
     @Test
     void testListAllInvoicesEmpty() {
         // Given
-        when(invoiceRepository.findAllByIsDeletedFalseOrderByInvoiceDateDesc())
+        UUID currentUserId = UserContext.getCurrentUser();
+        when(invoiceRepository.findAllByCreatedByAndIsDeletedFalseOrderByInvoiceDateDesc(currentUserId))
                 .thenReturn(Arrays.asList());
 
         // When
